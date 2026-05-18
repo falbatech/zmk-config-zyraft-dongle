@@ -1,0 +1,36 @@
+/*
+ * Zyra FT dongle shield z wyświetlaczem GC9A01 240x240 round
+ *
+ * Pinout (nice!nano v2):
+ *  GC9A01 SCL  -> D15 / P0.10 (SPI SCK)
+ *  GC9A01 SDA  -> D14 / P0.09 (SPI MOSI)
+ *  GC9A01 RES  -> D2  / P0.17
+ *  GC9A01 DC   -> D3  / P0.20
+ *  GC9A01 CS   -> D4  / P0.22
+ *  GC9A01 BL   -> D5  / P0.24 (PWM backlight)
+ */
+
+#include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
+#include <zephyr/dt-bindings/display/panel.h>
+#include "redoxft-layouts.dtsi"
+
+/ {
+    chosen {
+        zmk,kscan = &mock_kscan;
+        zephyr,display = &gc9a01;
+    };
+
+    mock_kscan: mock_kscan_0 {
+        compatible = "zmk,kscan-mock";
+        columns = <0>;
+        rows = <0>;
+        events = <0>;
+    };
+
+    pwmleds {
+        compatible = "pwm-leds";
+        disp_bl: pwm_led_0 {
+            pwms = <&pwm0 0 PWM_MSEC(1) PWM_POLARITY_NORMAL>;
+        };
+    };
+};

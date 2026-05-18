@@ -1,0 +1,5 @@
+#include "zyraft.dtsi"
+
+&default_transform {
+    col-offset = <17>;
+};

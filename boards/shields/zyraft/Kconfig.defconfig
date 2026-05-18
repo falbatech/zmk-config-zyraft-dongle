@@ -1,0 +1,35 @@
+# Zyra FT dongle config
+# Wymuszamy role dla każdego shielda
+
+if SHIELD_ZYRAFT_DONGLE
+
+config ZMK_KEYBOARD_NAME
+    default "Zyra FT DGL"
+
+config ZMK_SPLIT_ROLE_CENTRAL
+    default y
+
+endif
+
+if SHIELD_ZYRAFT_LEFT || SHIELD_ZYRAFT_RIGHT
+
+# To kluczowe: peripheral role wymuszony tutaj
+config ZMK_SPLIT_ROLE_CENTRAL
+    default n
+
+endif
+
+if SHIELD_ZYRAFT_LEFT
+
+config ZMK_KEYBOARD_NAME
+    default "Zyra FT"
+
+endif
+
+# Split włączony dla wszystkich 3 shieldów
+if SHIELD_ZYRAFT_LEFT || SHIELD_ZYRAFT_RIGHT || SHIELD_ZYRAFT_DONGLE
+
+config ZMK_SPLIT
+    default y
+
+endif

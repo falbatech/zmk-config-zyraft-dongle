@@ -1,0 +1,8 @@
+config SHIELD_ZYRAFT_LEFT
+    def_bool $(shields_list_contains,zyraft_left)
+
+config SHIELD_ZYRAFT_RIGHT
+    def_bool $(shields_list_contains,zyraft_right)
+
+config SHIELD_ZYRAFT_DONGLE
+    def_bool $(shields_list_contains,zyraft_dongle)

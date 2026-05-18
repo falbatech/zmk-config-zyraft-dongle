@@ -1,0 +1,28 @@
+---
+include:
+  # Settings reset - obowiązkowo flashowane PRZED docelowym firmware
+  - board: nice_nano//zmk
+    shield: settings_reset
+    artifact-name: settings_reset
+
+  # Dongle z ZMK Studio (USB HID + Studio)
+  - board: nice_nano//zmk
+    shield: zyraft_dongle
+    artifact-name: zyraft_dongle_studio
+    snippet: studio-rpc-usb-uart
+    cmake-args: -DCONFIG_ZMK_STUDIO=y
+
+  # Dongle bez Studio (jeśli Studio robi problemy)
+  - board: nice_nano//zmk
+    shield: zyraft_dongle
+    artifact-name: zyraft_dongle
+
+  # Lewa połówka - peripheral (do użytku z donglem)
+  - board: nice_nano//zmk
+    shield: zyraft_left
+    artifact-name: zyraft_left
+
+  # Prawa połówka - peripheral
+  - board: nice_nano//zmk
+    shield: zyraft_right
+    artifact-name: zyraft_right

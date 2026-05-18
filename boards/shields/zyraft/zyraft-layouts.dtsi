@@ -1,0 +1,69 @@
+/*
+ * Zyra FT - layouts (matrix transform + physical layout)
+ * 34 klawisze: 5 col × 3 row + 2 thumb na stronę
+ */
+
+#include <dt-bindings/zmk/matrix_transform.h>
+#include <physical_layouts.dtsi>
+
+/ {
+    chosen {
+        zmk,physical-layout = &zyraft_physical_layout;
+    };
+
+    default_transform: keymap_transform_0 {
+        compatible = "zmk,matrix-transform";
+        columns = <34>;
+        rows = <1>;
+        map = <
+        RC(0,0)  RC(0,1)  RC(0,2)  RC(0,3)  RC(0,4)    RC(0,21) RC(0,20) RC(0,19) RC(0,18) RC(0,17)
+        RC(0,5)  RC(0,6)  RC(0,7)  RC(0,8)  RC(0,9)    RC(0,26) RC(0,25) RC(0,24) RC(0,23) RC(0,22)
+        RC(0,10) RC(0,11) RC(0,12) RC(0,13) RC(0,14)   RC(0,31) RC(0,30) RC(0,29) RC(0,28) RC(0,27)
+                                   RC(0,15) RC(0,16)   RC(0,33) RC(0,32)
+        >;
+    };
+
+    zyraft_physical_layout: zyraft_physical_layout {
+        compatible = "zmk,physical-layout";
+        display-name = "Zyra FT";
+        transform = <&default_transform>;
+
+        keys
+            //                     w   h    x    y     rot    rx    ry
+            = <&key_physical_attrs 100 100    0   95       0     0     0>
+            , <&key_physical_attrs 100 100  100   32       0     0     0>
+            , <&key_physical_attrs 100 100  200    0       0     0     0>
+            , <&key_physical_attrs 100 100  300   28       0     0     0>
+            , <&key_physical_attrs 100 100  400   42       0     0     0>
+            , <&key_physical_attrs 100 100  700   42       0     0     0>
+            , <&key_physical_attrs 100 100  800   28       0     0     0>
+            , <&key_physical_attrs 100 100  900    0       0     0     0>
+            , <&key_physical_attrs 100 100 1000   32       0     0     0>
+            , <&key_physical_attrs 100 100 1100   95       0     0     0>
+            , <&key_physical_attrs 100 100    0  195       0     0     0>
+            , <&key_physical_attrs 100 100  100  132       0     0     0>
+            , <&key_physical_attrs 100 100  200  100       0     0     0>
+            , <&key_physical_attrs 100 100  300  128       0     0     0>
+            , <&key_physical_attrs 100 100  400  142       0     0     0>
+            , <&key_physical_attrs 100 100  700  142       0     0     0>
+            , <&key_physical_attrs 100 100  800  128       0     0     0>
+            , <&key_physical_attrs 100 100  900  100       0     0     0>
+            , <&key_physical_attrs 100 100 1000  132       0     0     0>
+            , <&key_physical_attrs 100 100 1100  195       0     0     0>
+            , <&key_physical_attrs 100 100    0  295       0     0     0>
+            , <&key_physical_attrs 100 100  100  232       0     0     0>
+            , <&key_physical_attrs 100 100  200  200       0     0     0>
+            , <&key_physical_attrs 100 100  300  228       0     0     0>
+            , <&key_physical_attrs 100 100  400  242       0     0     0>
+            , <&key_physical_attrs 100 100  700  242       0     0     0>
+            , <&key_physical_attrs 100 100  800  228       0     0     0>
+            , <&key_physical_attrs 100 100  900  200       0     0     0>
+            , <&key_physical_attrs 100 100 1000  232       0     0     0>
+            , <&key_physical_attrs 100 100 1100  295       0     0     0>
+            , <&key_physical_attrs 100 100  300  342       0     0     0>
+            , <&key_physical_attrs 100 100  400  385       0     0     0>
+            , <&key_physical_attrs 100 100  700  385       0     0     0>
+            , <&key_physical_attrs 100 100  800  342       0     0     0>
+            ;
+    };
+};
