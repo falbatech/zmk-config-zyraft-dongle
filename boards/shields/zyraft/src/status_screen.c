@@ -21,54 +21,41 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define SPLASH_DURATION_MS 2500
 
 static bool splash_done = false;
-
 static struct k_work_delayable splash_work;
 
 static lv_obj_t *screen;
-
 static lv_obj_t *splash_logo;
-
 static lv_obj_t *top_logo;
 static lv_obj_t *layer_label;
 
 static lv_obj_t *left_label;
 static lv_obj_t *right_label;
-
 static lv_obj_t *left_bar_bg;
 static lv_obj_t *left_bar_fill;
 static lv_obj_t *right_bar_bg;
 static lv_obj_t *right_bar_fill;
-
 static lv_obj_t *left_percent;
 static lv_obj_t *right_percent;
-
 static lv_obj_t *bt_dots[5];
 
 static uint32_t current_accent = 0xD6B56D;
 
+static void update_bt_profile(void);
+
 static uint32_t color_for_layer(uint8_t layer) {
     switch (layer) {
-        case 0:
-            return 0xD6B56D;
-        case 1:
-            return 0x00D9FF;
-        case 2:
-            return 0xFF9F1C;
-        case 3:
-            return 0xC77DFF;
-        case 4:
-            return 0x00FF90;
-        case 5:
-            return 0xFF3040;
-        default:
-            return 0x00FF90;
+        case 0: return 0xD6B56D;
+        case 1: return 0x00D9FF;
+        case 2: return 0xFF9F1C;
+        case 3: return 0xC77DFF;
+        case 4: return 0x00FF90;
+        case 5: return 0xFF3040;
+        default: return 0x00FF90;
     }
 }
 
 static void set_hidden(lv_obj_t *obj, bool hidden) {
-    if (!obj) {
-        return;
-    }
+    if (!obj) return;
 
     if (hidden) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -82,7 +69,7 @@ static void style_text(lv_obj_t *obj, uint32_t color, const lv_font_t *font) {
     lv_obj_set_style_text_font(obj, font, 0);
 }
 
-static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, uint8_t opa, int radius) {
+static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, lv_opa_t opa, int radius) {
     lv_obj_t *obj = lv_obj_create(parent);
     lv_obj_set_size(obj, w, h);
     lv_obj_set_style_bg_color(obj, lv_color_hex(color), 0);
@@ -94,22 +81,13 @@ static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, uint8_
 }
 
 static void set_bar_value(lv_obj_t *fill, int value) {
-    if (!fill) {
-        return;
-    }
+    if (!fill) return;
 
-    if (value < 0) {
-        value = 0;
-    }
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
 
-    if (value > 100) {
-        value = 100;
-    }
-
-    int width = (100 * value) / 100;
-    if (width < 4 && value > 0) {
-        width = 4;
-    }
+    int width = value;
+    if (width < 4 && value > 0) width = 4;
 
     lv_obj_set_width(fill, width);
 }
@@ -185,33 +163,19 @@ static void build_bt_dots(void) {
 
 static void update_active_layer(void) {
     uint8_t layer = zmk_keymap_highest_layer_active();
-
     current_accent = color_for_layer(layer);
 
     const char *name = zmk_keymap_layer_name(layer);
+
     if (!name) {
         switch (layer) {
-            case 0:
-                name = "BASE";
-                break;
-            case 1:
-                name = "NAV";
-                break;
-            case 2:
-                name = "NUM";
-                break;
-            case 3:
-                name = "SYM";
-                break;
-            case 4:
-                name = "FN";
-                break;
-            case 5:
-                name = "GAMING";
-                break;
-            default:
-                name = "LAYER";
-                break;
+            case 0: name = "BASE"; break;
+            case 1: name = "NAV"; break;
+            case 2: name = "NUM"; break;
+            case 3: name = "SYM"; break;
+            case 4: name = "FN"; break;
+            case 5: name = "GAMING"; break;
+            default: name = "LAYER"; break;
         }
     }
 
@@ -235,9 +199,7 @@ static void update_bt_profile(void) {
     uint8_t active = zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
-        if (!bt_dots[i]) {
-            continue;
-        }
+        if (!bt_dots[i]) continue;
 
         if (i == active) {
             lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(current_accent), 0);
