@@ -1,3 +1,5 @@
+Wklej cały plik boards/shields/zyraft/src/status_screen.c:
+
 /*
  * FalbaTech FT Dongle status screen
  * GC9A01 240x240 round display
@@ -44,12 +46,12 @@ static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display
 static uint32_t layer_color(uint8_t layer)
 {
     switch (layer) {
-    case 0: return 0xE6C27A; /* BASE gold */
-    case 1: return 0x00D9FF; /* NAV cyan */
-    case 2: return 0xFF9D00; /* NUM amber */
-    case 3: return 0xB65CFF; /* SYM violet */
-    case 4: return 0x00FF90; /* FN green */
-    default: return 0xFF3B3B; /* other red */
+    case 0: return 0xE6C27A;
+    case 1: return 0x00D9FF;
+    case 2: return 0xFF9D00;
+    case 3: return 0xB65CFF;
+    case 4: return 0x00FF90;
+    default: return 0xFF3B3B;
     }
 }
 
@@ -100,7 +102,7 @@ static void build_logo(void)
 {
     mini_logo = lv_image_create(screen);
     lv_image_set_src(mini_logo, &falbatech_logo_small);
-    lv_obj_align(mini_logo, LV_ALIGN_TOP_MID, 0, 18);
+    lv_obj_align(mini_logo, LV_ALIGN_TOP_MID, 0, 16);
     lv_obj_add_flag(mini_logo, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -109,7 +111,7 @@ static void build_layer_label(void)
     layer_label = lv_label_create(screen);
     lv_label_set_text(layer_label, "BASE");
     lv_obj_set_style_text_color(layer_label, lv_color_hex(0xE6C27A), 0);
-    lv_obj_set_style_text_font(layer_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(layer_label, &lv_font_montserrat_28, 0);
     lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -18);
     lv_obj_add_flag(layer_label, LV_OBJ_FLAG_HIDDEN);
 }
