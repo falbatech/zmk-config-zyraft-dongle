@@ -271,7 +271,7 @@ static void build_layer_label(void) {
 static void build_battery_widgets(void) {
 
     left_percent = lv_label_create(screen);
-    style_text(left_percent, COLOR_TEXT, &lv_font_montserrat_16);
+    style_text(left_percent, COLOR_TEXT, &lv_font_montserrat_14);
 
     lv_obj_align(
         left_percent,
