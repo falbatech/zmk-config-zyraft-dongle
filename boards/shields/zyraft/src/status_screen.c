@@ -30,6 +30,9 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 3000
 
+/* Sprawdzenie czy backlight node istnieje w devicetree */
+#define HAS_BACKLIGHT DT_NODE_HAS_STATUS(DT_NODELABEL(disp_bl), okay)
+
 static bool splash_done = false;
 static struct k_work_delayable splash_to_status_work;
 static struct k_work_delayable display_init_work;
@@ -44,8 +47,10 @@ static lv_obj_t *bat_right_arc;
 static lv_obj_t *bat_right_label;
 static lv_obj_t *bt_dots[5];
 
+#if HAS_BACKLIGHT
 /* PWM backlight - referencja do node disp_bl z devicetree */
 static const struct pwm_dt_spec backlight_pwm = PWM_DT_SPEC_GET(DT_NODELABEL(disp_bl));
+#endif
 
 /* Display device - referencja przez chosen zephyr,display */
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
@@ -63,6 +68,7 @@ static void init_display_and_backlight(struct k_work *work) {
         LOG_ERR("Display device not ready");
     }
 
+#if HAS_BACKLIGHT
     /* Włącz backlight na 100% */
     if (device_is_ready(backlight_pwm.dev)) {
         int ret = pwm_set_pulse_dt(&backlight_pwm, backlight_pwm.period);
@@ -74,6 +80,9 @@ static void init_display_and_backlight(struct k_work *work) {
     } else {
         LOG_ERR("Backlight PWM device not ready");
     }
+#else
+    LOG_INF("No backlight node defined - skipping backlight init");
+#endif
 }
 
 static void show_splash(void) {
