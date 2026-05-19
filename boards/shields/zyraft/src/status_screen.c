@@ -1,5 +1,7 @@
+Poniżej cały kompletny plik status_screen.c do skopiowania.
+
 /*
- * Zyra FT Dongle - FalbaTech WOW status screen
+ * Zyra FT Dongle - FalbaTech premium status screen
  * GC9A01 240x240 round display
  */
 
@@ -20,12 +22,11 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
-#define COLOR_BG        0x000000
-#define COLOR_WHITE     0xFFFFFF
-#define COLOR_DIM       0x5F6F73
-#define COLOR_BAR_BG    0x102025
-#define COLOR_BT_OFF    0x263D44
-#define COLOR_GREEN     0x00D46A
+#define COLOR_WHITE 0xFFFFFF
+#define COLOR_GREEN 0x55E46D
+#define COLOR_BG    0x050505
+#define COLOR_DARK  0x1B1B1B
+#define COLOR_DOT   0x2A2A2A
 
 static bool splash_done = false;
 static struct k_work_delayable splash_work;
@@ -38,10 +39,10 @@ static lv_obj_t *layer_label;
 static lv_obj_t *left_label;
 static lv_obj_t *right_label;
 
-static lv_obj_t *left_battery_bg;
-static lv_obj_t *left_battery_fill;
-static lv_obj_t *right_battery_bg;
-static lv_obj_t *right_battery_fill;
+static lv_obj_t *left_bar_bg;
+static lv_obj_t *left_bar_fill;
+static lv_obj_t *right_bar_bg;
+static lv_obj_t *right_bar_fill;
 
 static lv_obj_t *left_percent;
 static lv_obj_t *right_percent;
@@ -75,7 +76,6 @@ static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, lv_opa
     lv_obj_set_style_bg_opa(obj, opa, 0);
     lv_obj_set_style_border_width(obj, 0, 0);
     lv_obj_set_style_radius(obj, radius, 0);
-    lv_obj_set_style_pad_all(obj, 0, 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 
     return obj;
@@ -94,7 +94,7 @@ static void set_vertical_bar_value(lv_obj_t *fill, int value) {
         value = 100;
     }
 
-    int max_height = 58;
+    int max_height = 46;
     int height = (max_height * value) / 100;
 
     if (height < 4 && value > 0) {
@@ -102,7 +102,6 @@ static void set_vertical_bar_value(lv_obj_t *fill, int value) {
     }
 
     lv_obj_set_height(fill, height);
-    lv_obj_align(fill, LV_ALIGN_BOTTOM_MID, 0, -2);
 }
 
 static void build_splash(void) {
@@ -114,62 +113,69 @@ static void build_splash(void) {
 static void build_top_logo(void) {
     top_logo = lv_image_create(screen);
     lv_image_set_src(top_logo, &falbatech_logo_small);
-    lv_obj_align(top_logo, LV_ALIGN_TOP_MID, 0, 14);
+    lv_obj_align(top_logo, LV_ALIGN_TOP_MID, 0, 8);
     set_hidden(top_logo, true);
 }
 
 static void build_layer_label(void) {
     layer_label = lv_label_create(screen);
-    lv_label_set_text(layer_label, "BASE");
+    lv_label_set_text(layer_label, "Base");
     style_text(layer_label, COLOR_WHITE, &lv_font_montserrat_28);
-    lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -18);
+    lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -8);
     set_hidden(layer_label, true);
 }
 
 static void build_battery_widgets(void) {
     left_label = lv_label_create(screen);
     lv_label_set_text(left_label, "L");
-    style_text(left_label, COLOR_WHITE, &lv_font_montserrat_14);
-    lv_obj_align(left_label, LV_ALIGN_CENTER, -73, 31);
+    style_text(left_label, COLOR_WHITE, &lv_font_montserrat_12);
+    lv_obj_set_style_text_opa(left_label, LV_OPA_80, 0);
+    lv_obj_align(left_label, LV_ALIGN_CENTER, -78, 66);
     set_hidden(left_label, true);
 
     right_label = lv_label_create(screen);
     lv_label_set_text(right_label, "R");
-    style_text(right_label, COLOR_WHITE, &lv_font_montserrat_14);
-    lv_obj_align(right_label, LV_ALIGN_CENTER, 73, 31);
+    style_text(right_label, COLOR_WHITE, &lv_font_montserrat_12);
+    lv_obj_set_style_text_opa(right_label, LV_OPA_80, 0);
+    lv_obj_align(right_label, LV_ALIGN_CENTER, 78, 66);
     set_hidden(right_label, true);
-
-    left_battery_bg = make_box(screen, 24, 64, COLOR_BAR_BG, LV_OPA_COVER, 8);
-    lv_obj_align(left_battery_bg, LV_ALIGN_CENTER, -73, 69);
-    set_hidden(left_battery_bg, true);
-
-    left_battery_fill = make_box(left_battery_bg, 18, 58, COLOR_GREEN, LV_OPA_COVER, 6);
-    set_vertical_bar_value(left_battery_fill, 87);
-
-    right_battery_bg = make_box(screen, 24, 64, COLOR_BAR_BG, LV_OPA_COVER, 8);
-    lv_obj_align(right_battery_bg, LV_ALIGN_CENTER, 73, 69);
-    set_hidden(right_battery_bg, true);
-
-    right_battery_fill = make_box(right_battery_bg, 18, 58, COLOR_GREEN, LV_OPA_COVER, 6);
-    set_vertical_bar_value(right_battery_fill, 92);
 
     left_percent = lv_label_create(screen);
     lv_label_set_text(left_percent, "87%");
     style_text(left_percent, COLOR_WHITE, &lv_font_montserrat_12);
-    lv_obj_align(left_percent, LV_ALIGN_CENTER, -73, 108);
+    lv_obj_set_style_text_opa(left_percent, LV_OPA_80, 0);
+    lv_obj_align(left_percent, LV_ALIGN_CENTER, -58, 28);
     set_hidden(left_percent, true);
 
     right_percent = lv_label_create(screen);
     lv_label_set_text(right_percent, "92%");
     style_text(right_percent, COLOR_WHITE, &lv_font_montserrat_12);
-    lv_obj_align(right_percent, LV_ALIGN_CENTER, 73, 108);
+    lv_obj_set_style_text_opa(right_percent, LV_OPA_80, 0);
+    lv_obj_align(right_percent, LV_ALIGN_CENTER, 58, 28);
     set_hidden(right_percent, true);
+
+    left_bar_bg = make_box(screen, 13, 54, COLOR_DARK, LV_OPA_COVER, 7);
+    lv_obj_align(left_bar_bg, LV_ALIGN_CENTER, -58, 66);
+    set_hidden(left_bar_bg, true);
+
+    left_bar_fill = make_box(left_bar_bg, 9, 40, COLOR_GREEN, LV_OPA_COVER, 5);
+    lv_obj_align(left_bar_fill, LV_ALIGN_BOTTOM_MID, 0, -2);
+
+    right_bar_bg = make_box(screen, 13, 54, COLOR_DARK, LV_OPA_COVER, 7);
+    lv_obj_align(right_bar_bg, LV_ALIGN_CENTER, 58, 66);
+    set_hidden(right_bar_bg, true);
+
+    right_bar_fill = make_box(right_bar_bg, 9, 42, COLOR_GREEN, LV_OPA_COVER, 5);
+    lv_obj_align(right_bar_fill, LV_ALIGN_BOTTOM_MID, 0, -2);
+
+    set_vertical_bar_value(left_bar_fill, 87);
+    set_vertical_bar_value(right_bar_fill, 92);
 }
 
 static void build_bt_dots(void) {
     for (int i = 0; i < 5; i++) {
-        bt_dots[i] = make_box(screen, 8, 8, COLOR_BT_OFF, LV_OPA_COVER, LV_RADIUS_CIRCLE);
-        lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -32 + (i * 16), 91);
+        bt_dots[i] = make_box(screen, 8, 8, COLOR_DOT, LV_OPA_COVER, LV_RADIUS_CIRCLE);
+        lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -24 + (i * 12), 92);
         set_hidden(bt_dots[i], true);
     }
 }
@@ -181,13 +187,27 @@ static void update_active_layer(void) {
 
     if (!name) {
         switch (layer) {
-            case 0: name = "BASE"; break;
-            case 1: name = "NAV"; break;
-            case 2: name = "NUM"; break;
-            case 3: name = "SYM"; break;
-            case 4: name = "FN"; break;
-            case 5: name = "GAMING"; break;
-            default: name = "LAYER"; break;
+            case 0:
+                name = "Base";
+                break;
+            case 1:
+                name = "Nav";
+                break;
+            case 2:
+                name = "Num";
+                break;
+            case 3:
+                name = "Sym";
+                break;
+            case 4:
+                name = "Fn";
+                break;
+            case 5:
+                name = "Gaming";
+                break;
+            default:
+                name = "Layer";
+                break;
         }
     }
 
@@ -209,13 +229,13 @@ static void update_bt_profile(void) {
 
         if (i == active) {
             lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_GREEN), 0);
-            lv_obj_set_size(bt_dots[i], 12, 12);
+            lv_obj_set_size(bt_dots[i], 10, 10);
         } else {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_BT_OFF), 0);
-            lv_obj_set_size(bt_dots[i], 8, 8);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT), 0);
+            lv_obj_set_size(bt_dots[i], 7, 7);
         }
 
-        lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -32 + (i * 16), 91);
+        lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -24 + (i * 12), 92);
     }
 }
 
@@ -233,8 +253,8 @@ static void show_status(struct k_work *work) {
     set_hidden(left_label, false);
     set_hidden(right_label, false);
 
-    set_hidden(left_battery_bg, false);
-    set_hidden(right_battery_bg, false);
+    set_hidden(left_bar_bg, false);
+    set_hidden(right_bar_bg, false);
 
     set_hidden(left_percent, false);
     set_hidden(right_percent, false);
@@ -291,7 +311,7 @@ lv_obj_t *zmk_display_status_screen(void) {
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
 
-    LOG_INF("FT Dongle WOW screen initialized");
+    LOG_INF("FT Dongle premium screen initialized");
 
     return screen;
 }
