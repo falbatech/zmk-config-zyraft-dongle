@@ -55,18 +55,17 @@ static const struct pwm_dt_spec backlight_pwm = PWM_DT_SPEC_GET(DT_NODELABEL(dis
 /* Display device - referencja przez chosen zephyr,display */
 static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 
-static void init_display_and_backlight(struct k_work *work) {
-    /* Wyłącz display blanking - bez tego GC9A01 może zostać czarny */
-    if (device_is_ready(display_dev)) {
-        int ret = display_blanking_off(display_dev);
-        if (ret) {
-            LOG_ERR("Failed to disable display blanking: %d", ret);
-        } else {
-            LOG_INF("Display blanking OFF");
-        }
-    } else {
-        LOG_ERR("Display device not ready");
+#include <zephyr/drivers/gpio.h>
+
+static const struct gpio_dt_spec backlight =
+    GPIO_DT_SPEC_GET(DT_NODELABEL(lcd_bl), gpios);
+
+static void init_display_and_backlight(void)
+{
+    if (gpio_is_ready_dt(&backlight)) {
+        gpio_pin_configure_dt(&backlight, GPIO_OUTPUT_ACTIVE);
     }
+}
 
 #if HAS_BACKLIGHT
     /* Włącz backlight na 100% */
