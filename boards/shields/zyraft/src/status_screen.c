@@ -1,5 +1,5 @@
 /*
- * Zyra FT Dongle - FalbaTech WOW status screen
+ * Zyra FT Dongle - FalbaTech status screen
  * GC9A01 240x240 round display
  */
 
@@ -20,9 +20,12 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
-#define COLOR_TEXT 0xFFFFFF
-#define COLOR_DOT_ACTIVE 0x00FF90
-#define COLOR_DOT_INACTIVE 0x2F3A3A
+#define COLOR_BG        0x000000
+#define COLOR_TEXT      0xFFFFFF
+#define COLOR_MUTED     0xD8D8D8
+#define COLOR_BAR_BG    0x1A1A1A
+#define COLOR_ACCENT    0x00E676
+#define COLOR_DOT_OFF   0x2A2A2A
 
 static bool splash_done = false;
 static struct k_work_delayable splash_work;
@@ -42,24 +45,12 @@ static lv_obj_t *left_percent;
 static lv_obj_t *right_percent;
 static lv_obj_t *bt_dots[5];
 
-static uint32_t current_accent = 0xD6B56D;
-
 static void update_bt_profile(void);
 
-static uint32_t color_for_layer(uint8_t layer) {
-    switch (layer) {
-        case 0: return 0xD6B56D;
-        case 1: return 0x00D9FF;
-        case 2: return 0xFF9F1C;
-        case 3: return 0xC77DFF;
-        case 4: return 0x00FF90;
-        case 5: return 0xFF3040;
-        default: return 0x00FF90;
-    }
-}
-
 static void set_hidden(lv_obj_t *obj, bool hidden) {
-    if (!obj) return;
+    if (!obj) {
+        return;
+    }
 
     if (hidden) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -75,23 +66,36 @@ static void style_text(lv_obj_t *obj, uint32_t color, const lv_font_t *font) {
 
 static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, lv_opa_t opa, int radius) {
     lv_obj_t *obj = lv_obj_create(parent);
+
     lv_obj_set_size(obj, w, h);
     lv_obj_set_style_bg_color(obj, lv_color_hex(color), 0);
     lv_obj_set_style_bg_opa(obj, opa, 0);
     lv_obj_set_style_border_width(obj, 0, 0);
     lv_obj_set_style_radius(obj, radius, 0);
+    lv_obj_set_style_pad_all(obj, 0, 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+
     return obj;
 }
 
 static void set_bar_value(lv_obj_t *fill, int value) {
-    if (!fill) return;
+    if (!fill) {
+        return;
+    }
 
-    if (value < 0) value = 0;
-    if (value > 100) value = 100;
+    if (value < 0) {
+        value = 0;
+    }
+
+    if (value > 100) {
+        value = 100;
+    }
 
     int width = value;
-    if (width < 4 && value > 0) width = 4;
+
+    if (width < 4 && value > 0) {
+        width = 4;
+    }
 
     lv_obj_set_width(fill, width);
 }
@@ -130,18 +134,18 @@ static void build_battery_widgets(void) {
     lv_obj_align(right_label, LV_ALIGN_CENTER, -76, 61);
     set_hidden(right_label, true);
 
-    left_bar_bg = make_box(screen, 104, 13, 0x102025, LV_OPA_COVER, 6);
+    left_bar_bg = make_box(screen, 104, 13, COLOR_BAR_BG, LV_OPA_COVER, 6);
     lv_obj_align(left_bar_bg, LV_ALIGN_CENTER, -10, 35);
     set_hidden(left_bar_bg, true);
 
-    left_bar_fill = make_box(left_bar_bg, 87, 9, current_accent, LV_OPA_COVER, 5);
+    left_bar_fill = make_box(left_bar_bg, 87, 9, COLOR_ACCENT, LV_OPA_COVER, 5);
     lv_obj_align(left_bar_fill, LV_ALIGN_LEFT_MID, 2, 0);
 
-    right_bar_bg = make_box(screen, 104, 13, 0x102025, LV_OPA_COVER, 6);
+    right_bar_bg = make_box(screen, 104, 13, COLOR_BAR_BG, LV_OPA_COVER, 6);
     lv_obj_align(right_bar_bg, LV_ALIGN_CENTER, -10, 61);
     set_hidden(right_bar_bg, true);
 
-    right_bar_fill = make_box(right_bar_bg, 92, 9, current_accent, LV_OPA_COVER, 5);
+    right_bar_fill = make_box(right_bar_bg, 92, 9, COLOR_ACCENT, LV_OPA_COVER, 5);
     lv_obj_align(right_bar_fill, LV_ALIGN_LEFT_MID, 2, 0);
 
     left_percent = lv_label_create(screen);
@@ -159,7 +163,7 @@ static void build_battery_widgets(void) {
 
 static void build_bt_dots(void) {
     for (int i = 0; i < 5; i++) {
-        bt_dots[i] = make_box(screen, 10, 10, COLOR_DOT_INACTIVE, LV_OPA_COVER, LV_RADIUS_CIRCLE);
+        bt_dots[i] = make_box(screen, 9, 9, COLOR_DOT_OFF, LV_OPA_COVER, LV_RADIUS_CIRCLE);
         lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -32 + (i * 16), 95);
         set_hidden(bt_dots[i], true);
     }
@@ -167,33 +171,38 @@ static void build_bt_dots(void) {
 
 static void update_active_layer(void) {
     uint8_t layer = zmk_keymap_highest_layer_active();
-    current_accent = color_for_layer(layer);
 
     const char *name = zmk_keymap_layer_name(layer);
 
     if (!name) {
         switch (layer) {
-            case 0: name = "BASE"; break;
-            case 1: name = "NAV"; break;
-            case 2: name = "NUM"; break;
-            case 3: name = "SYM"; break;
-            case 4: name = "FN"; break;
-            case 5: name = "GAMING"; break;
-            default: name = "LAYER"; break;
+            case 0:
+                name = "BASE";
+                break;
+            case 1:
+                name = "NAV";
+                break;
+            case 2:
+                name = "NUM";
+                break;
+            case 3:
+                name = "SYM";
+                break;
+            case 4:
+                name = "FN";
+                break;
+            case 5:
+                name = "GAMING";
+                break;
+            default:
+                name = "LAYER";
+                break;
         }
     }
 
     if (layer_label) {
         lv_label_set_text(layer_label, name);
         lv_obj_set_style_text_color(layer_label, lv_color_hex(COLOR_TEXT), 0);
-    }
-
-    if (left_bar_fill) {
-        lv_obj_set_style_bg_color(left_bar_fill, lv_color_hex(current_accent), 0);
-    }
-
-    if (right_bar_fill) {
-        lv_obj_set_style_bg_color(right_bar_fill, lv_color_hex(current_accent), 0);
     }
 
     update_bt_profile();
@@ -203,13 +212,15 @@ static void update_bt_profile(void) {
     uint8_t active = zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
-        if (!bt_dots[i]) continue;
+        if (!bt_dots[i]) {
+            continue;
+        }
 
         if (i == active) {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_ACTIVE), 0);
-            lv_obj_set_size(bt_dots[i], 12, 12);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_ACCENT), 0);
+            lv_obj_set_size(bt_dots[i], 11, 11);
         } else {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_INACTIVE), 0);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_OFF), 0);
             lv_obj_set_size(bt_dots[i], 8, 8);
         }
 
@@ -270,7 +281,7 @@ ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
 lv_obj_t *zmk_display_status_screen(void) {
     screen = lv_obj_create(NULL);
 
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(COLOR_BG), 0);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(screen, 0, 0);
     lv_obj_set_style_pad_all(screen, 0, 0);
@@ -289,7 +300,7 @@ lv_obj_t *zmk_display_status_screen(void) {
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
 
-    LOG_INF("FT Dongle WOW screen initialized");
+    LOG_INF("FT Dongle screen initialized");
 
     return screen;
 }
