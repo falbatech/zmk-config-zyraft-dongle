@@ -283,7 +283,7 @@ static void build_battery_widgets(void) {
     set_hidden(left_percent, true);
 
     right_percent = lv_label_create(screen);
-    style_text(right_percent, COLOR_TEXT, &lv_font_montserrat_16);
+    style_text(right_percent, COLOR_TEXT, &lv_font_montserrat_14);
 
     lv_obj_align(
         right_percent,
