@@ -1,5 +1,3 @@
-Wklej cały plik boards/shields/zyraft/src/status_screen.c:
-
 /*
  * FalbaTech FT Dongle status screen
  * GC9A01 240x240 round display
