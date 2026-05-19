@@ -255,7 +255,7 @@ static void build_layer_label(void) {
     style_text(
         layer_label,
         COLOR_TEXT,
-        &lv_font_montserrat_24
+        &lv_font_montserrat_28
     );
 
     lv_obj_align(
