@@ -4,10 +4,16 @@
  * Tryby:
  *  - Splash (pierwsze 3 sekundy po boot): pełnoekranowe logo na czarnym tle
  *  - Status (potem): mini-FT u góry + aktywna warstwa + baterie L/R + 5 BT profili
+ *
+ * UWAGA: Przy boot włączamy backlight PWM (100%) i wyłączamy display blanking
+ * - bez tego ekran GC9A01 pozostanie czarny mimo że firmware działa.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/display.h>
+#include <zephyr/drivers/pwm.h>
+#include <zephyr/device.h>
 #include <lvgl.h>
 
 #include <zmk/display.h>
@@ -26,6 +32,7 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 static bool splash_done = false;
 static struct k_work_delayable splash_to_status_work;
+static struct k_work_delayable display_init_work;
 
 static lv_obj_t *screen;
 static lv_obj_t *splash_logo;
@@ -36,6 +43,38 @@ static lv_obj_t *bat_left_label;
 static lv_obj_t *bat_right_arc;
 static lv_obj_t *bat_right_label;
 static lv_obj_t *bt_dots[5];
+
+/* PWM backlight - referencja do node disp_bl z devicetree */
+static const struct pwm_dt_spec backlight_pwm = PWM_DT_SPEC_GET(DT_NODELABEL(disp_bl));
+
+/* Display device - referencja przez chosen zephyr,display */
+static const struct device *display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+
+static void init_display_and_backlight(struct k_work *work) {
+    /* Wyłącz display blanking - bez tego GC9A01 może zostać czarny */
+    if (device_is_ready(display_dev)) {
+        int ret = display_blanking_off(display_dev);
+        if (ret) {
+            LOG_ERR("Failed to disable display blanking: %d", ret);
+        } else {
+            LOG_INF("Display blanking OFF");
+        }
+    } else {
+        LOG_ERR("Display device not ready");
+    }
+
+    /* Włącz backlight na 100% */
+    if (device_is_ready(backlight_pwm.dev)) {
+        int ret = pwm_set_pulse_dt(&backlight_pwm, backlight_pwm.period);
+        if (ret) {
+            LOG_ERR("Failed to set backlight PWM: %d", ret);
+        } else {
+            LOG_INF("Backlight ON (PWM 100%%)");
+        }
+    } else {
+        LOG_ERR("Backlight PWM device not ready");
+    }
+}
 
 static void show_splash(void) {
     splash_logo = lv_image_create(screen);
@@ -182,6 +221,13 @@ lv_obj_t *zmk_display_status_screen(void) {
     update_active_layer();
     update_bt_profile();
 
+    /* KLUCZOWE: włącz backlight + wyłącz display blanking
+     * Bez tego ekran GC9A01 zostaje czarny mimo że LVGL rysuje
+     * Delayed work żeby LVGL miało czas narysować logo zanim ekran się włączy */
+    k_work_init_delayable(&display_init_work, init_display_and_backlight);
+    k_work_schedule(&display_init_work, K_MSEC(200));
+
+    /* Po 3 sek splash znika, pokazujemy status */
     k_work_init_delayable(&splash_to_status_work, hide_splash);
     k_work_schedule(&splash_to_status_work, K_MSEC(SPLASH_DURATION_MS));
 
