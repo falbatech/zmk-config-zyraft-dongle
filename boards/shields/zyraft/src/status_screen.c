@@ -20,6 +20,10 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
+#define COLOR_TEXT 0xFFFFFF
+#define COLOR_DOT_ACTIVE 0x00FF90
+#define COLOR_DOT_INACTIVE 0x2F3A3A
+
 static bool splash_done = false;
 static struct k_work_delayable splash_work;
 
@@ -108,7 +112,7 @@ static void build_top_logo(void) {
 static void build_layer_label(void) {
     layer_label = lv_label_create(screen);
     lv_label_set_text(layer_label, "BASE");
-    style_text(layer_label, current_accent, &lv_font_montserrat_28);
+    style_text(layer_label, COLOR_TEXT, &lv_font_montserrat_28);
     lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -28);
     set_hidden(layer_label, true);
 }
@@ -116,13 +120,13 @@ static void build_layer_label(void) {
 static void build_battery_widgets(void) {
     left_label = lv_label_create(screen);
     lv_label_set_text(left_label, "L");
-    style_text(left_label, 0xA2B5B8, &lv_font_montserrat_14);
+    style_text(left_label, COLOR_TEXT, &lv_font_montserrat_14);
     lv_obj_align(left_label, LV_ALIGN_CENTER, -76, 35);
     set_hidden(left_label, true);
 
     right_label = lv_label_create(screen);
     lv_label_set_text(right_label, "R");
-    style_text(right_label, 0xA2B5B8, &lv_font_montserrat_14);
+    style_text(right_label, COLOR_TEXT, &lv_font_montserrat_14);
     lv_obj_align(right_label, LV_ALIGN_CENTER, -76, 61);
     set_hidden(right_label, true);
 
@@ -142,20 +146,20 @@ static void build_battery_widgets(void) {
 
     left_percent = lv_label_create(screen);
     lv_label_set_text(left_percent, "87%");
-    style_text(left_percent, 0xA2B5B8, &lv_font_montserrat_14);
+    style_text(left_percent, COLOR_TEXT, &lv_font_montserrat_14);
     lv_obj_align(left_percent, LV_ALIGN_CENTER, 66, 35);
     set_hidden(left_percent, true);
 
     right_percent = lv_label_create(screen);
     lv_label_set_text(right_percent, "92%");
-    style_text(right_percent, 0xA2B5B8, &lv_font_montserrat_14);
+    style_text(right_percent, COLOR_TEXT, &lv_font_montserrat_14);
     lv_obj_align(right_percent, LV_ALIGN_CENTER, 66, 61);
     set_hidden(right_percent, true);
 }
 
 static void build_bt_dots(void) {
     for (int i = 0; i < 5; i++) {
-        bt_dots[i] = make_box(screen, 10, 10, 0x263D44, LV_OPA_COVER, LV_RADIUS_CIRCLE);
+        bt_dots[i] = make_box(screen, 10, 10, COLOR_DOT_INACTIVE, LV_OPA_COVER, LV_RADIUS_CIRCLE);
         lv_obj_align(bt_dots[i], LV_ALIGN_CENTER, -32 + (i * 16), 95);
         set_hidden(bt_dots[i], true);
     }
@@ -181,7 +185,7 @@ static void update_active_layer(void) {
 
     if (layer_label) {
         lv_label_set_text(layer_label, name);
-        lv_obj_set_style_text_color(layer_label, lv_color_hex(current_accent), 0);
+        lv_obj_set_style_text_color(layer_label, lv_color_hex(COLOR_TEXT), 0);
     }
 
     if (left_bar_fill) {
@@ -202,10 +206,10 @@ static void update_bt_profile(void) {
         if (!bt_dots[i]) continue;
 
         if (i == active) {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(current_accent), 0);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_ACTIVE), 0);
             lv_obj_set_size(bt_dots[i], 12, 12);
         } else {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(0x263D44), 0);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_INACTIVE), 0);
             lv_obj_set_size(bt_dots[i], 8, 8);
         }
 
