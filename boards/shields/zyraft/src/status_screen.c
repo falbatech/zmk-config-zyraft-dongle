@@ -26,7 +26,8 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
 
-#define COLOR_BAR_ON    0xE00039
+#define COLOR_BAR_LOW   0x777777  /* dolne segmenty — szary */
+#define COLOR_BAR_HIGH  0x00CC44  /* górne segmenty — zielony */
 #define COLOR_BAR_OFF   0x1A1A1A
 
 #define COLOR_DOT_ON    0xE00039
@@ -140,9 +141,10 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
         }
 
         if (i < filled) {
+            uint32_t color = (i < BAR_SEGMENTS / 2) ? COLOR_BAR_LOW : COLOR_BAR_HIGH;
             lv_obj_set_style_bg_color(
                 segments[i],
-                lv_color_hex(COLOR_BAR_ON),
+                lv_color_hex(color),
                 0
             );
         } else {
@@ -177,7 +179,7 @@ static void update_side_battery(lv_obj_t *pct, lv_obj_t *icon,
     bool visible = splash_done && connected;
 
     set_hidden(pct,  !visible);
-    set_hidden(icon, !visible);
+    set_hidden(icon, true);
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
         set_hidden(segs[i], !visible);
@@ -185,7 +187,6 @@ static void update_side_battery(lv_obj_t *pct, lv_obj_t *icon,
 
     if (visible) {
         lv_label_set_text_fmt(pct, "%d%%", percent);
-        lv_label_set_text(icon, LV_SYMBOL_CHARGE);
         update_segment_bar(segs, percent);
     }
 }
@@ -598,3 +599,4 @@ lv_obj_t *zmk_display_status_screen(void) {
 
     return screen;
 }
+```
