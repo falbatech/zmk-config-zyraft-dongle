@@ -28,7 +28,7 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define COLOR_GREEN     0x00FF00
 #define COLOR_GREY      0x666666
-#define COLOR_DARKGREY  0x222222
+#define COLOR_DARKGREY  0x333333
 
 #define BAR_SEGMENTS 10
 #define BAR_W 18
@@ -122,12 +122,15 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
     int filled = (percent + 9) / 10;
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
+        if (!segments[i]) {
+            continue;
+        }
 
         bool active = i < filled;
 
         lv_obj_set_style_bg_color(
             segments[i],
-            lv_color_hex(active ? COLOR_GREEN : COLOR_DARKGREY),
+            lv_color_hex(active ? COLOR_GREEN : COLOR_GREY),
             0
         );
     }
