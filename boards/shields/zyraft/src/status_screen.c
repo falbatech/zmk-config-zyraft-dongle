@@ -24,6 +24,7 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
+
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
 #define COLOR_MUTED     0xB8B8B8
@@ -251,12 +252,14 @@ static void build_battery_widgets(void) {
     set_hidden(right_icon, true);
 
     left_link = lv_label_create(screen);
-    style_text(left_link, COLOR_LINK_OFF, &lv_font_montserrat_10);
+    lv_label_set_text(left_link, "----");
+    style_text(left_link, COLOR_LINK_OFF, &lv_font_montserrat_14);
     lv_obj_align(left_link, LV_ALIGN_CENTER, -76, 15);
     set_hidden(left_link, true);
 
     right_link = lv_label_create(screen);
-    style_text(right_link, COLOR_LINK_OFF, &lv_font_montserrat_10);
+    lv_label_set_text(right_link, "----");
+    style_text(right_link, COLOR_LINK_OFF, &lv_font_montserrat_14);
     lv_obj_align(right_link, LV_ALIGN_CENTER, 76, 15);
     set_hidden(right_link, true);
 
