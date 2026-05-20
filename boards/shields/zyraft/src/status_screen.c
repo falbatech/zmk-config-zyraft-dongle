@@ -1,3 +1,5 @@
+Poniżej cały plik status_screen.c do podmiany.
+
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240 round display
@@ -24,17 +26,18 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
-
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
-#define COLOR_MUTED     0xB8B8B8
+#define COLOR_MUTED     0x888888
 
 #define COLOR_BAR_ON    0x00FF66
 #define COLOR_OFF       0x111111
-#define COLOR_DOT_ON    0x00FF66
-#define COLOR_CHARGE    0x00FF66
+
+#define COLOR_DOT_ON    0xCC66FF
+#define COLOR_CHARGE    0xFFD400
+
 #define COLOR_LINK_ON   0x00FF66
-#define COLOR_LINK_OFF  0x333333
+#define COLOR_LINK_OFF  0x444444
 
 #define BAR_SEGMENTS 10
 #define BAR_W 20
@@ -142,14 +145,14 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
 
 static void update_link_status(void) {
     if (half_connected) {
-        lv_label_set_text(left_link, "LINK");
-        lv_label_set_text(right_link, "LINK");
+        lv_label_set_text(left_link, LV_SYMBOL_OK);
+        lv_label_set_text(right_link, LV_SYMBOL_OK);
 
         lv_obj_set_style_text_color(left_link, lv_color_hex(COLOR_LINK_ON), 0);
         lv_obj_set_style_text_color(right_link, lv_color_hex(COLOR_LINK_ON), 0);
     } else {
-        lv_label_set_text(left_link, "----");
-        lv_label_set_text(right_link, "----");
+        lv_label_set_text(left_link, "X");
+        lv_label_set_text(right_link, "X");
 
         lv_obj_set_style_text_color(left_link, lv_color_hex(COLOR_LINK_OFF), 0);
         lv_obj_set_style_text_color(right_link, lv_color_hex(COLOR_LINK_OFF), 0);
@@ -252,15 +255,13 @@ static void build_battery_widgets(void) {
     set_hidden(right_icon, true);
 
     left_link = lv_label_create(screen);
-    lv_label_set_text(left_link, "----");
     style_text(left_link, COLOR_LINK_OFF, &lv_font_montserrat_14);
-    lv_obj_align(left_link, LV_ALIGN_CENTER, -76, 15);
+    lv_obj_align(left_link, LV_ALIGN_CENTER, -48, 15);
     set_hidden(left_link, true);
 
     right_link = lv_label_create(screen);
-    lv_label_set_text(right_link, "----");
     style_text(right_link, COLOR_LINK_OFF, &lv_font_montserrat_14);
-    lv_obj_align(right_link, LV_ALIGN_CENTER, 76, 15);
+    lv_obj_align(right_link, LV_ALIGN_CENTER, 48, 15);
     set_hidden(right_link, true);
 
     build_segment_bar(left_segments, -76);
