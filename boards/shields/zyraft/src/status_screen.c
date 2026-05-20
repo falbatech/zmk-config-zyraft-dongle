@@ -224,12 +224,12 @@ static void build_battery_widgets(void) {
     set_hidden(right_percent, true);
 
     left_icon = lv_label_create(screen);
-    style_text(left_icon, COLOR_CHARGE, &lv_font_montserrat_16);
+    style_text(left_icon, COLOR_CHARGE, &lv_font_montserrat_14);
     lv_obj_align(left_icon, LV_ALIGN_CENTER, -76, -28);
     set_hidden(left_icon, true);
 
     right_icon = lv_label_create(screen);
-    style_text(right_icon, COLOR_CHARGE, &lv_font_montserrat_16);
+    style_text(right_icon, COLOR_CHARGE, &lv_font_montserrat_14);
     lv_obj_align(right_icon, LV_ALIGN_CENTER, 76, -28);
     set_hidden(right_icon, true);
 
