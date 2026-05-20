@@ -1,5 +1,3 @@
-Poniżej cały plik status_screen.c do podmiany.
-
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240 round display
