@@ -27,10 +27,10 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_TEXT      0xFFFFFF
 #define COLOR_MUTED     0xB8B8B8
 
-#define COLOR_BAR_ON    0x00FF66
+#define COLOR_BAR_ON    0x008CFF
 #define COLOR_OFF       0x111111
-#define COLOR_DOT_ON    0x00FF66
-#define COLOR_CHARGE    0x00FF66
+#define COLOR_DOT_ON    0x008CFF
+#define COLOR_CHARGE    0x008CFF
 
 #define BAR_SEGMENTS 10
 #define BAR_W 20
@@ -201,12 +201,7 @@ static void build_segment_bar(lv_obj_t **segments, int x) {
 
         int y = start_y - (i * (SEG_H + SEG_GAP));
 
-        lv_obj_align(
-            segments[i],
-            LV_ALIGN_CENTER,
-            x,
-            y
-        );
+        lv_obj_align(segments[i], LV_ALIGN_CENTER, x, y);
 
         set_hidden(segments[i], true);
     }
