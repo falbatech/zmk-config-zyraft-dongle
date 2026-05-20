@@ -325,10 +325,10 @@ if (ev->source == 1) {
 
 ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
 
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_peripheral_status_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_battery_state_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_usb_conn_state_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_endpoint_changed);
 
 lv_obj_t *zmk_display_status_screen(void) {
     screen = lv_obj_create(NULL);
