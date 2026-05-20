@@ -305,15 +305,15 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
         const struct zmk_peripheral_battery_state_changed *ev =
             as_zmk_peripheral_battery_state_changed(eh);
 
-        if (ev->source == 1) {
-            left_connected = ev->state_of_charge > 0;
-            battery_left = ev->state_of_charge;
-        }
-
         if (ev->source == 0) {
-            right_connected = ev->state_of_charge > 0;
-            battery_right = ev->state_of_charge;
-        }
+    left_connected = ev->state_of_charge > 0;
+    battery_left = ev->state_of_charge;
+}
+
+if (ev->source == 1) {
+    right_connected = ev->state_of_charge > 0;
+    battery_right = ev->state_of_charge;
+}
 
         update_link_status();
         update_battery_visuals();
