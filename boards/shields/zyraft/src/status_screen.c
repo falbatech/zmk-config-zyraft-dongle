@@ -1,8 +1,3 @@
-/*
- * Zyra FT Dongle - FalbaTech Status Screen
- * GC9A01 240x240
- */
-
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <lvgl.h>
@@ -15,7 +10,7 @@
 #include <zmk/events/split_peripheral_status_changed.h>
 
 #include <zmk/keymap.h>
-#include <zmk/
+#include <zmk/ble.h>
 
 #include "falbatech_logo.h"
 
