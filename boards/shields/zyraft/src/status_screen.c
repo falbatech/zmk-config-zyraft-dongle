@@ -26,8 +26,8 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
 
-#define COLOR_BAR_LOW   0x777777  /* dolne segmenty — szary */
-#define COLOR_BAR_HIGH  0x00CC44  /* górne segmenty — zielony */
+#define COLOR_BAR_LOW   0xBBBBBB  /* dolne segmenty — jasny szary/srebrny */
+#define COLOR_BAR_HIGH  0x00FF44  /* górne segmenty — żywy zielony */
 #define COLOR_BAR_OFF   0x1A1A1A
 
 #define COLOR_DOT_ON    0xE00039
@@ -141,7 +141,12 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
         }
 
         if (i < filled) {
-            uint32_t color = (i < BAR_SEGMENTS / 2) ? COLOR_BAR_LOW : COLOR_BAR_HIGH;
+            uint32_t color;
+            if (filled >= BAR_SEGMENTS || i >= BAR_SEGMENTS / 2) {
+                color = COLOR_BAR_HIGH;
+            } else {
+                color = COLOR_BAR_LOW;
+            }
             lv_obj_set_style_bg_color(
                 segments[i],
                 lv_color_hex(color),
