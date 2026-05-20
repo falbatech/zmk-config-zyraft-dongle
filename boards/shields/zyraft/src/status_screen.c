@@ -29,16 +29,14 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_TEXT      0xFFFFFF
 #define COLOR_MUTED     0xB8B8B8
 
-#define COLOR_GREEN     0x39FF14
-#define COLOR_GREEN_2   0x00D95F
-#define COLOR_OFF       0x202020
-#define COLOR_WHITE     0xFFFFFF
-#define COLOR_DOT_OFF   0x555555
-#define COLOR_CHARGE    0x3FA9FF
+#define COLOR_GREEN     0xE00039
+#define COLOR_GREEN_2   0xE00039
+#define COLOR_DOT_ON    0xE00039
+#define COLOR_CHARGE    0xE00039
 
-#define BAR_SEGMENTS 12
+#define BAR_SEGMENTS 10
 #define BAR_W 20
-#define SEG_H 4
+#define SEG_H 5
 #define SEG_GAP 2
 
 static bool splash_done = false;
