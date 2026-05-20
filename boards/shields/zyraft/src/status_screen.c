@@ -1,5 +1,5 @@
 /*
- * Zyra FT Dongle - FalbaTech Status Screen
+ * Zyra FT Dongle - FalbaTech Premium Status Screen
  * GC9A01 240x240
  */
 
@@ -9,9 +9,10 @@
 
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
+
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
-#include <zmk/events/battery_state_changed.h>
+#include <zmk/events/peripheral_battery_state_changed.h>
 #include <zmk/events/split_peripheral_status_changed.h>
 
 #include <zmk/keymap.h>
@@ -26,17 +27,21 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
 
-#define COLOR_BAR_LOW   0xAABBCC  /* dolne segmenty — chłodny srebrny (kompensacja BGR) */
-#define COLOR_BAR_HIGH  0x44FF00  /* górne segmenty — zielony (BGR: R i B zamienione) */
+/* bateria */
+#define COLOR_BAR_HIGH  0x00FF66
+#define COLOR_BAR_LOW   0x8A8A8A
 #define COLOR_BAR_OFF   0x1A1A1A
 
-#define COLOR_DOT_ON    0xE00039
+/* bluetooth */
+#define COLOR_DOT_ON    0x00FF66
 #define COLOR_DOT_OFF   0x333333
 
-#define COLOR_LINK_ON   0xE00039
-#define COLOR_LINK_OFF  0x333333
+/* L / R */
+#define COLOR_LINK_ON   0x00FF66
+#define COLOR_LINK_OFF  0x444444
 
-#define COLOR_CHARGE    0xE00039
+/* ładowanie */
+#define COLOR_CHARGE    0x00FF66
 
 #define BAR_SEGMENTS 10
 #define BAR_W 18
@@ -44,12 +49,14 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define SEG_GAP 2
 
 static bool splash_done = false;
+
 static bool left_connected = false;
 static bool right_connected = false;
 
 static struct k_work_delayable splash_work;
 
 static lv_obj_t *screen;
+
 static lv_obj_t *splash_logo;
 static lv_obj_t *top_logo;
 static lv_obj_t *layer_label;
@@ -72,6 +79,7 @@ static int battery_left = 0;
 static int battery_right = 0;
 
 static void set_hidden(lv_obj_t *obj, bool hidden) {
+
     if (!obj) {
         return;
     }
@@ -83,22 +91,47 @@ static void set_hidden(lv_obj_t *obj, bool hidden) {
     }
 }
 
-static void style_text(lv_obj_t *obj, uint32_t color, const lv_font_t *font) {
-    lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
-    lv_obj_set_style_text_font(obj, font, 0);
+static void style_text(lv_obj_t *obj,
+                       uint32_t color,
+                       const lv_font_t *font) {
+
+    lv_obj_set_style_text_color(
+        obj,
+        lv_color_hex(color),
+        0
+    );
+
+    lv_obj_set_style_text_font(
+        obj,
+        font,
+        0
+    );
 }
 
-static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, int radius) {
+static lv_obj_t *make_box(lv_obj_t *parent,
+                          int w,
+                          int h,
+                          uint32_t color,
+                          int radius) {
+
     lv_obj_t *obj = lv_obj_create(parent);
 
     lv_obj_set_size(obj, w, h);
 
-    lv_obj_set_style_bg_color(obj, lv_color_hex(color), 0);
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(
+        obj,
+        lv_color_hex(color),
+        0
+    );
+
+    lv_obj_set_style_bg_opa(
+        obj,
+        LV_OPA_COVER,
+        0
+    );
 
     lv_obj_set_style_border_width(obj, 0, 0);
     lv_obj_set_style_radius(obj, radius, 0);
-
     lv_obj_set_style_pad_all(obj, 0, 0);
 
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
@@ -107,7 +140,9 @@ static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, int ra
 }
 
 static const char *layer_name(uint8_t layer) {
-    const char *name = zmk_keymap_layer_name(layer);
+
+    const char *name =
+        zmk_keymap_layer_name(layer);
 
     if (name) {
         return name;
@@ -124,7 +159,9 @@ static const char *layer_name(uint8_t layer) {
     }
 }
 
-static void update_segment_bar(lv_obj_t **segments, int percent) {
+static void update_segment_bar(lv_obj_t **segments,
+                               int percent) {
+
     if (percent < 0) {
         percent = 0;
     }
@@ -136,26 +173,29 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
     int filled = (percent + 9) / 10;
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
+
         if (!segments[i]) {
             continue;
         }
 
+        /*
+         * i=0 -> dół
+         * i=9 -> góra
+         */
+
         if (i < filled) {
-            uint32_t color;
-            if (filled >= BAR_SEGMENTS || i >= BAR_SEGMENTS / 2) {
-                color = COLOR_BAR_HIGH;
-            } else {
-                color = COLOR_BAR_LOW;
-            }
+
             lv_obj_set_style_bg_color(
                 segments[i],
-                lv_color_hex(color),
+                lv_color_hex(COLOR_BAR_HIGH),
                 0
             );
+
         } else {
+
             lv_obj_set_style_bg_color(
                 segments[i],
-                lv_color_hex(COLOR_BAR_OFF),
+                lv_color_hex(COLOR_BAR_LOW),
                 0
             );
         }
@@ -163,53 +203,110 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
 }
 
 static void update_link_status(void) {
+
     lv_label_set_text(left_link, "L");
     lv_label_set_text(right_link, "R");
 
     lv_obj_set_style_text_color(
         left_link,
-        lv_color_hex(left_connected ? COLOR_LINK_ON : COLOR_LINK_OFF),
+        lv_color_hex(
+            left_connected ?
+            COLOR_LINK_ON :
+            COLOR_LINK_OFF
+        ),
         0
     );
 
     lv_obj_set_style_text_color(
         right_link,
-        lv_color_hex(right_connected ? COLOR_LINK_ON : COLOR_LINK_OFF),
+        lv_color_hex(
+            right_connected ?
+            COLOR_LINK_ON :
+            COLOR_LINK_OFF
+        ),
         0
     );
 }
 
-static void update_side_battery(lv_obj_t *pct, lv_obj_t *icon,
-                                lv_obj_t **segs, int percent, bool connected) {
-    bool visible = splash_done && connected;
+static void update_side_battery(
+    lv_obj_t *pct,
+    lv_obj_t *icon,
+    lv_obj_t **segs,
+    int percent,
+    bool connected
+) {
 
-    set_hidden(pct,  !visible);
-    set_hidden(icon, true);
+    bool visible =
+        splash_done &&
+        connected;
+
+    set_hidden(pct, !visible);
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
         set_hidden(segs[i], !visible);
     }
 
+    /*
+     * ładowanie
+     * pokazuje błyskawicę tylko dla USB / 100%
+     */
+
+    bool charging = (percent >= 100);
+
+    set_hidden(icon, !visible || !charging);
+
+    if (charging) {
+
+        lv_label_set_text(
+            icon,
+            LV_SYMBOL_CHARGE
+        );
+
+        lv_obj_set_style_text_color(
+            icon,
+            lv_color_hex(COLOR_CHARGE),
+            0
+        );
+    }
+
     if (visible) {
-        lv_label_set_text_fmt(pct, "%d%%", percent);
-        update_segment_bar(segs, percent);
+
+        lv_label_set_text_fmt(
+            pct,
+            "%d%%",
+            percent
+        );
+
+        update_segment_bar(
+            segs,
+            percent
+        );
     }
 }
 
 static void update_battery_visuals(void) {
+
     update_side_battery(
-        left_percent, left_icon, left_segments,
-        battery_left, left_connected
+        left_percent,
+        left_icon,
+        left_segments,
+        battery_left,
+        left_connected
     );
 
     update_side_battery(
-        right_percent, right_icon, right_segments,
-        battery_right, right_connected
+        right_percent,
+        right_icon,
+        right_segments,
+        battery_right,
+        right_connected
     );
 }
 
 static void update_bt_profile(void) {
-    uint8_t active = zmk_ble_active_profile_index();
+
+    uint8_t active =
+        zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
 
@@ -225,7 +322,11 @@ static void update_bt_profile(void) {
                 0
             );
 
-            lv_obj_set_size(bt_dots[i], 10, 10);
+            lv_obj_set_size(
+                bt_dots[i],
+                10,
+                10
+            );
 
         } else {
 
@@ -235,7 +336,11 @@ static void update_bt_profile(void) {
                 0
             );
 
-            lv_obj_set_size(bt_dots[i], 8, 8);
+            lv_obj_set_size(
+                bt_dots[i],
+                8,
+                8
+            );
         }
 
         lv_obj_align(
@@ -248,7 +353,9 @@ static void update_bt_profile(void) {
 }
 
 static void update_layer(void) {
-    uint8_t layer = zmk_keymap_highest_layer_active();
+
+    uint8_t layer =
+        zmk_keymap_highest_layer_active();
 
     lv_label_set_text(
         layer_label,
@@ -257,7 +364,9 @@ static void update_layer(void) {
 }
 
 static void build_splash(void) {
-    splash_logo = lv_image_create(screen);
+
+    splash_logo =
+        lv_image_create(screen);
 
     lv_image_set_src(
         splash_logo,
@@ -273,7 +382,9 @@ static void build_splash(void) {
 }
 
 static void build_top_logo(void) {
-    top_logo = lv_image_create(screen);
+
+    top_logo =
+        lv_image_create(screen);
 
     lv_image_set_src(
         top_logo,
@@ -291,9 +402,14 @@ static void build_top_logo(void) {
 }
 
 static void build_layer_label(void) {
-    layer_label = lv_label_create(screen);
 
-    lv_label_set_text(layer_label, "Base");
+    layer_label =
+        lv_label_create(screen);
+
+    lv_label_set_text(
+        layer_label,
+        "Base"
+    );
 
     style_text(
         layer_label,
@@ -311,13 +427,17 @@ static void build_layer_label(void) {
     set_hidden(layer_label, true);
 }
 
-static void build_segment_bar(lv_obj_t **segments, int x) {
+static void build_segment_bar(
+    lv_obj_t **segments,
+    int x
+) {
 
     int total_h =
         (BAR_SEGMENTS * SEG_H) +
         ((BAR_SEGMENTS - 1) * SEG_GAP);
 
-    int start_y = 40 + (total_h / 2);
+    int start_y =
+        40 + (total_h / 2);
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
 
@@ -325,7 +445,7 @@ static void build_segment_bar(lv_obj_t **segments, int x) {
             screen,
             BAR_W,
             SEG_H,
-            COLOR_BAR_OFF,
+            COLOR_BAR_LOW,
             2
         );
 
@@ -340,13 +460,17 @@ static void build_segment_bar(lv_obj_t **segments, int x) {
             y
         );
 
-        set_hidden(segments[i], true);
+        set_hidden(
+            segments[i],
+            true
+        );
     }
 }
 
 static void build_battery_widgets(void) {
 
-    left_percent = lv_label_create(screen);
+    left_percent =
+        lv_label_create(screen);
 
     style_text(
         left_percent,
@@ -363,7 +487,8 @@ static void build_battery_widgets(void) {
 
     set_hidden(left_percent, true);
 
-    right_percent = lv_label_create(screen);
+    right_percent =
+        lv_label_create(screen);
 
     style_text(
         right_percent,
@@ -380,7 +505,8 @@ static void build_battery_widgets(void) {
 
     set_hidden(right_percent, true);
 
-    left_icon = lv_label_create(screen);
+    left_icon =
+        lv_label_create(screen);
 
     style_text(
         left_icon,
@@ -397,7 +523,8 @@ static void build_battery_widgets(void) {
 
     set_hidden(left_icon, true);
 
-    right_icon = lv_label_create(screen);
+    right_icon =
+        lv_label_create(screen);
 
     style_text(
         right_icon,
@@ -414,7 +541,8 @@ static void build_battery_widgets(void) {
 
     set_hidden(right_icon, true);
 
-    left_link = lv_label_create(screen);
+    left_link =
+        lv_label_create(screen);
 
     style_text(
         left_link,
@@ -431,7 +559,8 @@ static void build_battery_widgets(void) {
 
     set_hidden(left_link, true);
 
-    right_link = lv_label_create(screen);
+    right_link =
+        lv_label_create(screen);
 
     style_text(
         right_link,
@@ -448,8 +577,15 @@ static void build_battery_widgets(void) {
 
     set_hidden(right_link, true);
 
-    build_segment_bar(left_segments, -76);
-    build_segment_bar(right_segments, 76);
+    build_segment_bar(
+        left_segments,
+        -76
+    );
+
+    build_segment_bar(
+        right_segments,
+        76
+    );
 }
 
 static void build_bt_dots(void) {
@@ -471,23 +607,29 @@ static void build_bt_dots(void) {
             -14
         );
 
-        set_hidden(bt_dots[i], true);
+        set_hidden(
+            bt_dots[i],
+            true
+        );
     }
 }
 
 static void show_status(struct k_work *work) {
 
     if (splash_logo) {
+
         lv_obj_del(splash_logo);
+
         splash_logo = NULL;
     }
 
     splash_done = true;
 
-    set_hidden(top_logo,    false);
+    set_hidden(top_logo, false);
     set_hidden(layer_label, false);
-    set_hidden(left_link,   false);
-    set_hidden(right_link,  false);
+
+    set_hidden(left_link, false);
+    set_hidden(right_link, false);
 
     for (int i = 0; i < 5; i++) {
         set_hidden(bt_dots[i], false);
@@ -499,13 +641,9 @@ static void show_status(struct k_work *work) {
     update_battery_visuals();
 }
 
-static int ft_dongle_listener(const zmk_event_t *eh) {
-
-    if (as_zmk_split_peripheral_status_changed(eh)) {
-        if (splash_done) {
-            update_link_status();
-        }
-    }
+static int ft_dongle_listener(
+    const zmk_event_t *eh
+) {
 
     if (!splash_done) {
         return ZMK_EV_EVENT_BUBBLE;
@@ -525,15 +663,27 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
             as_zmk_peripheral_battery_state_changed(eh);
 
         /*
-         * ZMK wysyła level=0 przy rozłączeniu peryferiów.
-         * source 0 = lewa połówka, source 1 = prawa połówka.
+         * source:
+         * 0 = left
+         * 1 = right
          */
+
         if (ev->source == 0) {
-            left_connected  = (ev->state_of_charge > 0);
-            battery_left    = ev->state_of_charge;
-        } else if (ev->source == 1) {
-            right_connected  = (ev->state_of_charge > 0);
-            battery_right    = ev->state_of_charge;
+
+            left_connected =
+                (ev->state_of_charge > 0);
+
+            battery_left =
+                ev->state_of_charge;
+        }
+
+        if (ev->source == 1) {
+
+            right_connected =
+                (ev->state_of_charge > 0);
+
+            battery_right =
+                ev->state_of_charge;
         }
 
         update_link_status();
@@ -543,16 +693,30 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
     return ZMK_EV_EVENT_BUBBLE;
 }
 
-ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
+ZMK_LISTENER(
+    ft_dongle_screen,
+    ft_dongle_listener
+);
 
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_peripheral_status_changed);
+ZMK_SUBSCRIPTION(
+    ft_dongle_screen,
+    zmk_layer_state_changed
+);
+
+ZMK_SUBSCRIPTION(
+    ft_dongle_screen,
+    zmk_ble_active_profile_changed
+);
+
+ZMK_SUBSCRIPTION(
+    ft_dongle_screen,
+    zmk_peripheral_battery_state_changed
+);
 
 lv_obj_t *zmk_display_status_screen(void) {
 
-    screen = lv_obj_create(NULL);
+    screen =
+        lv_obj_create(NULL);
 
     lv_obj_set_style_bg_color(
         screen,
