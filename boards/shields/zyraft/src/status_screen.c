@@ -1,6 +1,3 @@
-Plik jest aktualny. Oto kompletny kod:
-
-```c
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
@@ -607,4 +604,3 @@ lv_obj_t *zmk_display_status_screen(void) {
 
     return screen;
 }
-```
