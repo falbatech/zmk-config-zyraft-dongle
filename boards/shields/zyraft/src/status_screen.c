@@ -12,7 +12,7 @@
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/battery_state_changed.h>
-#include <zmk/events/split_peripheral_status_changed.h>
+#include <zmk/events/split_central_status_changed.h>
 
 #include <zmk/keymap.h>
 #include <zmk/ble.h>
@@ -501,9 +501,27 @@ static void show_status(struct k_work *work) {
 
 static int ft_dongle_listener(const zmk_event_t *eh) {
 
-    if (as_zmk_split_peripheral_status_changed(eh)) {
+    if (as_zmk_split_central_status_changed(eh)) {
+
+        const struct zmk_split_central_status_changed *ev =
+            as_zmk_split_central_status_changed(eh);
+
+        /* slot 0 = lewa połówka, slot 1 = prawa połówka */
+        if (ev->slot == 0) {
+            left_connected = ev->connected;
+            if (!ev->connected) {
+                battery_left = 0;
+            }
+        } else if (ev->slot == 1) {
+            right_connected = ev->connected;
+            if (!ev->connected) {
+                battery_right = 0;
+            }
+        }
+
         if (splash_done) {
             update_link_status();
+            update_battery_visuals();
         }
     }
 
@@ -524,19 +542,13 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
         const struct zmk_peripheral_battery_state_changed *ev =
             as_zmk_peripheral_battery_state_changed(eh);
 
-        /*
-         * ZMK wysyła level=0 przy rozłączeniu peryferiów.
-         * source 0 = lewa połówka, source 1 = prawa połówka.
-         */
+        /* source 0 = lewa połówka, source 1 = prawa połówka */
         if (ev->source == 0) {
-            left_connected  = (ev->state_of_charge > 0);
-            battery_left    = ev->state_of_charge;
+            battery_left = ev->state_of_charge;
         } else if (ev->source == 1) {
-            right_connected  = (ev->state_of_charge > 0);
-            battery_right    = ev->state_of_charge;
+            battery_right = ev->state_of_charge;
         }
 
-        update_link_status();
         update_battery_visuals();
     }
 
@@ -545,10 +557,10 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
 
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_central_status_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_peripheral_status_changed);
 
 lv_obj_t *zmk_display_status_screen(void) {
 
