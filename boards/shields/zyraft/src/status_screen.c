@@ -122,13 +122,12 @@ static void update_segment_bar(lv_obj_t **segments, int percent) {
     int filled = (percent + 9) / 10;
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
-        if (!segments[i]) {
-            continue;
-        }
+
+        bool active = i < filled;
 
         lv_obj_set_style_bg_color(
             segments[i],
-            lv_color_hex(i < filled ? COLOR_GREEN : COLOR_GREY),
+            lv_color_hex(active ? COLOR_GREEN : COLOR_DARKGREY),
             0
         );
     }
@@ -303,12 +302,12 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
         const struct zmk_peripheral_battery_state_changed *ev =
             as_zmk_peripheral_battery_state_changed(eh);
 
-        if (ev->source == 0) {
+        if (ev->source == 1) {
             left_connected = ev->state_of_charge > 0;
             battery_left = ev->state_of_charge;
         }
 
-        if (ev->source == 1) {
+        if (ev->source == 0) {
             right_connected = ev->state_of_charge > 0;
             battery_right = ev->state_of_charge;
         }
