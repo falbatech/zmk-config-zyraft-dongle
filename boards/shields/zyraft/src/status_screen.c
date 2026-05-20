@@ -43,7 +43,8 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define SEG_GAP 2
 
 static bool splash_done = false;
-static bool halves_connected = false;
+static bool left_connected = false;
+static bool right_connected = false;
 
 static struct k_work_delayable splash_work;
 
@@ -66,8 +67,8 @@ static lv_obj_t *right_segments[BAR_SEGMENTS];
 
 static lv_obj_t *bt_dots[5];
 
-static int battery_left = 100;
-static int battery_right = 100;
+static int battery_left = 0;
+static int battery_right = 0;
 
 static void set_hidden(lv_obj_t *obj, bool hidden) {
     if (!obj) {
@@ -158,42 +159,47 @@ static void update_link_status(void) {
     lv_label_set_text(left_link, "L");
     lv_label_set_text(right_link, "R");
 
-    if (halves_connected) {
-        lv_obj_set_style_text_color(
-            left_link,
-            lv_color_hex(COLOR_LINK_ON),
-            0
-        );
+    lv_obj_set_style_text_color(
+        left_link,
+        lv_color_hex(left_connected ? COLOR_LINK_ON : COLOR_LINK_OFF),
+        0
+    );
 
-        lv_obj_set_style_text_color(
-            right_link,
-            lv_color_hex(COLOR_LINK_ON),
-            0
-        );
-    } else {
-        lv_obj_set_style_text_color(
-            left_link,
-            lv_color_hex(COLOR_LINK_OFF),
-            0
-        );
+    lv_obj_set_style_text_color(
+        right_link,
+        lv_color_hex(right_connected ? COLOR_LINK_ON : COLOR_LINK_OFF),
+        0
+    );
+}
 
-        lv_obj_set_style_text_color(
-            right_link,
-            lv_color_hex(COLOR_LINK_OFF),
-            0
-        );
+static void update_side_battery(lv_obj_t *pct, lv_obj_t *icon,
+                                lv_obj_t **segs, int percent, bool connected) {
+    bool visible = splash_done && connected;
+
+    set_hidden(pct,  !visible);
+    set_hidden(icon, !visible);
+
+    for (int i = 0; i < BAR_SEGMENTS; i++) {
+        set_hidden(segs[i], !visible);
+    }
+
+    if (visible) {
+        lv_label_set_text_fmt(pct, "%d%%", percent);
+        lv_label_set_text(icon, LV_SYMBOL_CHARGE);
+        update_segment_bar(segs, percent);
     }
 }
 
 static void update_battery_visuals(void) {
-    lv_label_set_text_fmt(left_percent, "%d%%", battery_left);
-    lv_label_set_text_fmt(right_percent, "%d%%", battery_right);
+    update_side_battery(
+        left_percent, left_icon, left_segments,
+        battery_left, left_connected
+    );
 
-    lv_label_set_text(left_icon, LV_SYMBOL_CHARGE);
-    lv_label_set_text(right_icon, LV_SYMBOL_CHARGE);
-
-    update_segment_bar(left_segments, battery_left);
-    update_segment_bar(right_segments, battery_right);
+    update_side_battery(
+        right_percent, right_icon, right_segments,
+        battery_right, right_connected
+    );
 }
 
 static void update_bt_profile(void) {
@@ -438,9 +444,6 @@ static void build_battery_widgets(void) {
 
     build_segment_bar(left_segments, -76);
     build_segment_bar(right_segments, 76);
-
-    update_link_status();
-    update_battery_visuals();
 }
 
 static void build_bt_dots(void) {
@@ -475,22 +478,10 @@ static void show_status(struct k_work *work) {
 
     splash_done = true;
 
-    set_hidden(top_logo, false);
+    set_hidden(top_logo,    false);
     set_hidden(layer_label, false);
-
-    set_hidden(left_percent, false);
-    set_hidden(right_percent, false);
-
-    set_hidden(left_icon, false);
-    set_hidden(right_icon, false);
-
-    set_hidden(left_link, false);
-    set_hidden(right_link, false);
-
-    for (int i = 0; i < BAR_SEGMENTS; i++) {
-        set_hidden(left_segments[i], false);
-        set_hidden(right_segments[i], false);
-    }
+    set_hidden(left_link,   false);
+    set_hidden(right_link,  false);
 
     for (int i = 0; i < 5; i++) {
         set_hidden(bt_dots[i], false);
@@ -505,12 +496,6 @@ static void show_status(struct k_work *work) {
 static int ft_dongle_listener(const zmk_event_t *eh) {
 
     if (as_zmk_split_peripheral_status_changed(eh)) {
-
-        const struct zmk_split_peripheral_status_changed *ev =
-            as_zmk_split_peripheral_status_changed(eh);
-
-        halves_connected = ev->connected;
-
         if (splash_done) {
             update_link_status();
         }
@@ -528,14 +513,24 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
         update_bt_profile();
     }
 
-    if (as_zmk_battery_state_changed(eh)) {
+    if (as_zmk_peripheral_battery_state_changed(eh)) {
 
-        const struct zmk_battery_state_changed *ev =
-            as_zmk_battery_state_changed(eh);
+        const struct zmk_peripheral_battery_state_changed *ev =
+            as_zmk_peripheral_battery_state_changed(eh);
 
-        battery_left = ev->state_of_charge;
-        battery_right = ev->state_of_charge;
+        /*
+         * ZMK wysyła level=0 przy rozłączeniu peryferiów.
+         * source 0 = lewa połówka, source 1 = prawa połówka.
+         */
+        if (ev->source == 0) {
+            left_connected  = (ev->state_of_charge > 0);
+            battery_left    = ev->state_of_charge;
+        } else if (ev->source == 1) {
+            right_connected  = (ev->state_of_charge > 0);
+            battery_right    = ev->state_of_charge;
+        }
 
+        update_link_status();
         update_battery_visuals();
     }
 
@@ -546,7 +541,7 @@ ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
 
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_battery_state_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_peripheral_status_changed);
 
 lv_obj_t *zmk_display_status_screen(void) {
@@ -590,8 +585,6 @@ lv_obj_t *zmk_display_status_screen(void) {
 
     update_layer();
     update_bt_profile();
-    update_link_status();
-    update_battery_visuals();
 
     k_work_init_delayable(
         &splash_work,
