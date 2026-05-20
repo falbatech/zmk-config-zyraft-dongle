@@ -29,16 +29,20 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_TEXT      0xFFFFFF
 #define COLOR_MUTED     0xB8B8B8
 
-#define COLOR_GREEN     0xE00039
-#define COLOR_GREEN_2   0xE00039
-#define COLOR_DOT_ON    0xE00039
-#define COLOR_CHARGE    0xE00039
+// aktywne segmenty
+#define COLOR_BAR_ON    0x00FF66
+
+// wygaszone segmenty
+#define COLOR_OFF       0x111111
+
+// dodatkowe akcenty
+#define COLOR_DOT_ON    0x00FF66
+#define COLOR_CHARGE    0x00FF66
 
 #define BAR_SEGMENTS 10
 #define BAR_W 20
 #define SEG_H 5
 #define SEG_GAP 2
-
 static bool splash_done = false;
 static bool usb_powered = false;
 
