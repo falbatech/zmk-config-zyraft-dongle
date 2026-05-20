@@ -1,3 +1,6 @@
+Plik jest aktualny. Oto kompletny kod:
+
+```c
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
@@ -26,8 +29,8 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define COLOR_BG        0x000000
 #define COLOR_TEXT      0xFFFFFF
 
-#define COLOR_BAR_LOW   0xBBBBBB  /* dolne segmenty — jasny szary/srebrny */
-#define COLOR_BAR_HIGH  0x00FF44  /* górne segmenty — żywy zielony */
+#define COLOR_BAR_LOW   0xAABBCC  /* dolne segmenty — chłodny srebrny (kompensacja BGR) */
+#define COLOR_BAR_HIGH  0x44FF00  /* górne segmenty — zielony (BGR: R i B zamienione) */
 #define COLOR_BAR_OFF   0x1A1A1A
 
 #define COLOR_DOT_ON    0xE00039
@@ -604,3 +607,4 @@ lv_obj_t *zmk_display_status_screen(void) {
 
     return screen;
 }
+```
