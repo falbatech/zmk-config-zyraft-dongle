@@ -1,5 +1,5 @@
 /*
- * Zyra FT Dongle - FalbaTech Premium Status Screen
+ * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
  */
 
@@ -9,14 +9,13 @@
 
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
-
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/events/split_peripheral_status_changed.h>
 
 #include <zmk/keymap.h>
-#include <zmk/ble.h>
+#include <zmk/
 
 #include "falbatech_logo.h"
 
