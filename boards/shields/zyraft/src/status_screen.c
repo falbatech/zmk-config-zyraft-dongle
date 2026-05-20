@@ -25,20 +25,24 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
-#define COLOR_BG         0x000000
-#define COLOR_TEXT       0xFFFFFF
-#define COLOR_MUTED      0xA0A0A0
+#define COLOR_BG        0x000000
+#define COLOR_TEXT      0xFFFFFF
+#define COLOR_MUTED     0xB8B8B8
 
-#define COLOR_BAR_BG     0xFFFFFF
-#define COLOR_BAR_FILL   0x00D95F
+#define COLOR_GREEN     0x39FF14
+#define COLOR_GREEN_2   0x00D95F
+#define COLOR_OFF       0x202020
+#define COLOR_WHITE     0xFFFFFF
+#define COLOR_DOT_OFF   0x555555
+#define COLOR_CHARGE    0x3FA9FF
 
-#define COLOR_DOT_OFF    0x555555
-#define COLOR_DOT_ON     0x00D95F
-
-#define COLOR_CHARGING   0x3FA9FF
+#define BAR_SEGMENTS 12
+#define BAR_W 20
+#define SEG_H 4
+#define SEG_GAP 2
 
 static bool splash_done = false;
-static bool usb_connected = false;
+static bool usb_powered = false;
 
 static struct k_work_delayable splash_work;
 
@@ -47,17 +51,13 @@ static lv_obj_t *splash_logo;
 static lv_obj_t *top_logo;
 static lv_obj_t *layer_label;
 
-static lv_obj_t *left_bar_bg;
-static lv_obj_t *left_bar_fill;
-
-static lv_obj_t *right_bar_bg;
-static lv_obj_t *right_bar_fill;
-
 static lv_obj_t *left_percent;
 static lv_obj_t *right_percent;
-
 static lv_obj_t *left_icon;
 static lv_obj_t *right_icon;
+
+static lv_obj_t *left_segments[BAR_SEGMENTS];
+static lv_obj_t *right_segments[BAR_SEGMENTS];
 
 static lv_obj_t *bt_dots[5];
 
@@ -88,6 +88,7 @@ static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, int ra
     lv_obj_set_style_border_width(obj, 0, 0);
     lv_obj_set_style_radius(obj, radius, 0);
     lv_obj_set_style_pad_all(obj, 0, 0);
+
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 
     return obj;
@@ -101,60 +102,58 @@ static const char *layer_name(uint8_t layer) {
     }
 
     switch (layer) {
-        case 0: return "BASE";
-        case 1: return "NAV";
-        case 2: return "NUM";
-        case 3: return "SYM";
-        case 4: return "FN";
-        case 5: return "GAME";
-        default: return "LAYER";
+        case 0: return "Base";
+        case 1: return "Nav";
+        case 2: return "Num";
+        case 3: return "Sym";
+        case 4: return "Fn";
+        case 5: return "Game";
+        default: return "Layer";
     }
 }
 
-static void update_vertical_bar(lv_obj_t *fill, int value) {
-    if (!fill) return;
+static void update_segment_bar(lv_obj_t **segments, int value) {
+    if (!segments) return;
 
     if (value < 0) value = 0;
     if (value > 100) value = 100;
 
-    int max_h = 90;
-    int h = (max_h * value) / 100;
+    int active = (value * BAR_SEGMENTS + 99) / 100;
 
-    if (h < 4 && value > 0) {
-        h = 4;
+    for (int i = 0; i < BAR_SEGMENTS; i++) {
+        if (!segments[i]) continue;
+
+        if (i < active) {
+            lv_obj_set_style_bg_color(segments[i], lv_color_hex(COLOR_GREEN), 0);
+            lv_obj_set_style_bg_opa(segments[i], LV_OPA_COVER, 0);
+        } else {
+            lv_obj_set_style_bg_color(segments[i], lv_color_hex(COLOR_OFF), 0);
+            lv_obj_set_style_bg_opa(segments[i], LV_OPA_COVER, 0);
+        }
     }
-
-    lv_obj_set_size(fill, 16, h);
-    lv_obj_align(fill, LV_ALIGN_BOTTOM_MID, 0, -2);
 }
 
 static void update_battery_visuals(void) {
-    if (!left_percent || !right_percent) return;
+    usb_powered = zmk_usb_is_powered();
 
     lv_label_set_text_fmt(left_percent, "%d%%", left_battery);
     lv_label_set_text_fmt(right_percent, "%d%%", right_battery);
 
-    update_vertical_bar(left_bar_fill, left_battery);
-    update_vertical_bar(right_bar_fill, right_battery);
+    update_segment_bar(left_segments, left_battery);
+    update_segment_bar(right_segments, right_battery);
 
-    if (usb_connected) {
-        lv_obj_set_style_bg_color(left_bar_fill, lv_color_hex(COLOR_CHARGING), 0);
-        lv_obj_set_style_bg_color(right_bar_fill, lv_color_hex(COLOR_CHARGING), 0);
-
+    if (usb_powered) {
         lv_label_set_text(left_icon, LV_SYMBOL_CHARGE);
         lv_label_set_text(right_icon, LV_SYMBOL_CHARGE);
 
-        lv_obj_set_style_text_color(left_icon, lv_color_hex(COLOR_CHARGING), 0);
-        lv_obj_set_style_text_color(right_icon, lv_color_hex(COLOR_CHARGING), 0);
+        lv_obj_set_style_text_color(left_icon, lv_color_hex(COLOR_CHARGE), 0);
+        lv_obj_set_style_text_color(right_icon, lv_color_hex(COLOR_CHARGE), 0);
     } else {
-        lv_obj_set_style_bg_color(left_bar_fill, lv_color_hex(COLOR_BAR_FILL), 0);
-        lv_obj_set_style_bg_color(right_bar_fill, lv_color_hex(COLOR_BAR_FILL), 0);
-
         lv_label_set_text(left_icon, LV_SYMBOL_BATTERY_FULL);
         lv_label_set_text(right_icon, LV_SYMBOL_BATTERY_FULL);
 
-        lv_obj_set_style_text_color(left_icon, lv_color_hex(COLOR_TEXT), 0);
-        lv_obj_set_style_text_color(right_icon, lv_color_hex(COLOR_TEXT), 0);
+        lv_obj_set_style_text_color(left_icon, lv_color_hex(COLOR_WHITE), 0);
+        lv_obj_set_style_text_color(right_icon, lv_color_hex(COLOR_WHITE), 0);
     }
 }
 
@@ -162,13 +161,11 @@ static void update_bt_profile(void) {
     uint8_t active = zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
-        if (!bt_dots[i]) {
-            continue;
-        }
+        if (!bt_dots[i]) continue;
 
         if (i == active) {
-            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_ON), 0);
-            lv_obj_set_size(bt_dots[i], 11, 11);
+            lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_GREEN), 0);
+            lv_obj_set_size(bt_dots[i], 10, 10);
         } else {
             lv_obj_set_style_bg_color(bt_dots[i], lv_color_hex(COLOR_DOT_OFF), 0);
             lv_obj_set_size(bt_dots[i], 8, 8);
@@ -181,9 +178,8 @@ static void update_bt_profile(void) {
 static void update_layer(void) {
     uint8_t layer = zmk_keymap_highest_layer_active();
 
-    if (layer_label) {
-        lv_label_set_text(layer_label, layer_name(layer));
-    }
+    lv_label_set_text(layer_label, layer_name(layer));
+    lv_obj_set_style_text_color(layer_label, lv_color_hex(COLOR_TEXT), 0);
 }
 
 static void build_splash(void) {
@@ -201,46 +197,50 @@ static void build_top_logo(void) {
 
 static void build_layer_label(void) {
     layer_label = lv_label_create(screen);
-    lv_label_set_text(layer_label, "BASE");
+    lv_label_set_text(layer_label, "Base");
     style_text(layer_label, COLOR_TEXT, &lv_font_montserrat_28);
-    lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -48);
+    lv_obj_align(layer_label, LV_ALIGN_CENTER, 0, -42);
     set_hidden(layer_label, true);
 }
 
+static void build_segment_bar(lv_obj_t **segments, int x, int y_bottom) {
+    for (int i = 0; i < BAR_SEGMENTS; i++) {
+        segments[i] = make_box(screen, BAR_W, SEG_H, COLOR_OFF, 1);
+
+        lv_obj_align(
+            segments[i],
+            LV_ALIGN_CENTER,
+            x,
+            y_bottom - (i * (SEG_H + SEG_GAP))
+        );
+
+        set_hidden(segments[i], true);
+    }
+}
+
 static void build_battery_widgets(void) {
+    left_icon = lv_label_create(screen);
+    style_text(left_icon, COLOR_WHITE, &lv_font_montserrat_14);
+    lv_obj_align(left_icon, LV_ALIGN_CENTER, -78, -8);
+    set_hidden(left_icon, true);
+
+    right_icon = lv_label_create(screen);
+    style_text(right_icon, COLOR_WHITE, &lv_font_montserrat_14);
+    lv_obj_align(right_icon, LV_ALIGN_CENTER, 78, -8);
+    set_hidden(right_icon, true);
+
     left_percent = lv_label_create(screen);
     style_text(left_percent, COLOR_TEXT, &lv_font_montserrat_14);
-    lv_obj_align(left_percent, LV_ALIGN_CENTER, -78, -12);
+    lv_obj_align(left_percent, LV_ALIGN_CENTER, -78, 13);
     set_hidden(left_percent, true);
 
     right_percent = lv_label_create(screen);
     style_text(right_percent, COLOR_TEXT, &lv_font_montserrat_14);
-    lv_obj_align(right_percent, LV_ALIGN_CENTER, 78, -12);
+    lv_obj_align(right_percent, LV_ALIGN_CENTER, 78, 13);
     set_hidden(right_percent, true);
 
-    left_icon = lv_label_create(screen);
-    style_text(left_icon, COLOR_TEXT, &lv_font_montserrat_14);
-    lv_obj_align(left_icon, LV_ALIGN_CENTER, -78, -34);
-    set_hidden(left_icon, true);
-
-    right_icon = lv_label_create(screen);
-    style_text(right_icon, COLOR_TEXT, &lv_font_montserrat_14);
-    lv_obj_align(right_icon, LV_ALIGN_CENTER, 78, -34);
-    set_hidden(right_icon, true);
-
-    left_bar_bg = make_box(screen, 20, 94, COLOR_BAR_BG, 10);
-    lv_obj_align(left_bar_bg, LV_ALIGN_CENTER, -78, 44);
-    set_hidden(left_bar_bg, true);
-
-    left_bar_fill = make_box(left_bar_bg, 16, 80, COLOR_BAR_FILL, 8);
-    lv_obj_align(left_bar_fill, LV_ALIGN_BOTTOM_MID, 0, -2);
-
-    right_bar_bg = make_box(screen, 20, 94, COLOR_BAR_BG, 10);
-    lv_obj_align(right_bar_bg, LV_ALIGN_CENTER, 78, 44);
-    set_hidden(right_bar_bg, true);
-
-    right_bar_fill = make_box(right_bar_bg, 16, 80, COLOR_BAR_FILL, 8);
-    lv_obj_align(right_bar_fill, LV_ALIGN_BOTTOM_MID, 0, -2);
+    build_segment_bar(left_segments, -78, 82);
+    build_segment_bar(right_segments, 78, 82);
 
     update_battery_visuals();
 }
@@ -266,12 +266,13 @@ static void show_status(struct k_work *work) {
 
     set_hidden(left_percent, false);
     set_hidden(right_percent, false);
-
     set_hidden(left_icon, false);
     set_hidden(right_icon, false);
 
-    set_hidden(left_bar_bg, false);
-    set_hidden(right_bar_bg, false);
+    for (int i = 0; i < BAR_SEGMENTS; i++) {
+        set_hidden(left_segments[i], false);
+        set_hidden(right_segments[i], false);
+    }
 
     for (int i = 0; i < 5; i++) {
         set_hidden(bt_dots[i], false);
@@ -296,11 +297,6 @@ static int ft_dongle_listener(const zmk_event_t *eh) {
     }
 
     if (as_zmk_usb_conn_state_changed(eh)) {
-        const struct zmk_usb_conn_state_changed *ev =
-            as_zmk_usb_conn_state_changed(eh);
-
-        usb_connected = ev->conn_state == ZMK_USB_CONN_HID;
-
         update_battery_visuals();
     }
 
@@ -331,6 +327,7 @@ lv_obj_t *zmk_display_status_screen(void) {
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(screen, 0, 0);
     lv_obj_set_style_pad_all(screen, 0, 0);
+
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     build_splash();
