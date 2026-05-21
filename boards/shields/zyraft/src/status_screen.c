@@ -17,7 +17,13 @@
 #include <zmk/ble.h>
 
 #include "falbatech_logo.h"
-
+V_IMG_DECLARE(zmk_studio_logo);
+static void build_top_logo(void) {
+    top_logo = lv_image_create(screen);
+    lv_image_set_src(top_logo, &zmk_studio_logo);
+    lv_obj_align(top_logo, LV_ALIGN_TOP_MID, 0, 12);
+    set_hidden(top_logo, true);
+}
 LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
