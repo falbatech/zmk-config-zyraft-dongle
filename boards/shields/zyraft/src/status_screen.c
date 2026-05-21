@@ -1,3 +1,5 @@
+Poniżej masz wersję bez przygaszania, bez sleep, bez idle. Stały ekran cały czas aktywny.
+
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
@@ -23,41 +25,28 @@ LV_IMG_DECLARE(zmk_studio_logo);
 
 LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
-#define SPLASH_DURATION_MS   2500
-#define IDLE_TIMEOUT_MS      120000
-#define SLEEP_TIMEOUT_MS     300000
+#define SPLASH_DURATION_MS 2500
 
-#define COLOR_BG       0x000000
-#define COLOR_TEXT     0xFFFFFF
-#define COLOR_ON       0xE00039
-#define COLOR_OFF      0x884890
-#define COLOR_GREY_1   0xBBBBBB
-#define COLOR_GREY_2   0x444444
+#define COLOR_BG      0x000000
+#define COLOR_TEXT    0xFFFFFF
 
-#define BAR_SEGMENTS 10
-#define BAR_W 18
-#define SEG_H 5
-#define SEG_GAP 2
+#define COLOR_ON      0xE00039   /* zielony */
+#define COLOR_OFF     0x884890   /* siwy */
 
-typedef enum {
-    DISP_ACTIVE,
-    DISP_IDLE,
-    DISP_SLEEP
-} disp_state_t;
-
-static disp_state_t disp_state = DISP_ACTIVE;
+#define BAR_SEGMENTS  10
+#define BAR_W         18
+#define SEG_H          5
+#define SEG_GAP        2
 
 static bool splash_done = false;
+
 static bool left_connected = false;
 static bool right_connected = false;
 
 static int battery_left = 0;
 static int battery_right = 0;
 
-static int64_t last_activity = 0;
-
 static struct k_work_delayable splash_work;
-static lv_timer_t *sleep_timer = NULL;
 
 static lv_obj_t *screen;
 static lv_obj_t *splash_logo;
@@ -77,7 +66,9 @@ static lv_obj_t *bt_dots[5];
 
 static void set_hidden(lv_obj_t *obj, bool hidden)
 {
-    if (!obj) return;
+    if (!obj) {
+        return;
+    }
 
     if (hidden) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -90,27 +81,6 @@ static void style_text(lv_obj_t *obj, uint32_t color, const lv_font_t *font)
 {
     lv_obj_set_style_text_color(obj, lv_color_hex(color), 0);
     lv_obj_set_style_text_font(obj, font, 0);
-}
-
-static uint32_t state_text_color(void)
-{
-    if (disp_state == DISP_ACTIVE) return COLOR_TEXT;
-    if (disp_state == DISP_IDLE) return COLOR_GREY_1;
-    return COLOR_GREY_2;
-}
-
-static uint32_t state_on_color(void)
-{
-    if (disp_state == DISP_ACTIVE) return COLOR_ON;
-    if (disp_state == DISP_IDLE) return COLOR_GREY_1;
-    return COLOR_GREY_2;
-}
-
-static uint32_t state_off_color(void)
-{
-    if (disp_state == DISP_ACTIVE) return COLOR_OFF;
-    if (disp_state == DISP_IDLE) return COLOR_GREY_2;
-    return COLOR_GREY_2;
 }
 
 static lv_obj_t *make_box(lv_obj_t *parent, int w, int h, uint32_t color, int radius)
@@ -132,7 +102,9 @@ static const char *layer_name(uint8_t layer)
 {
     const char *name = zmk_keymap_layer_name(layer);
 
-    if (name) return name;
+    if (name) {
+        return name;
+    }
 
     switch (layer) {
         case 0: return "Base";
@@ -145,52 +117,36 @@ static const char *layer_name(uint8_t layer)
     }
 }
 
-static void mark_activity(void)
-{
-    last_activity = k_uptime_get();
-}
-
-static void update_logo_color(void)
-{
-    if (!top_logo) return;
-
-    if (disp_state == DISP_ACTIVE) {
-        lv_obj_set_style_image_recolor_opa(top_logo, LV_OPA_0, 0);
-    } else if (disp_state == DISP_IDLE) {
-        lv_obj_set_style_image_recolor(top_logo, lv_color_hex(COLOR_GREY_1), 0);
-        lv_obj_set_style_image_recolor_opa(top_logo, LV_OPA_80, 0);
-    } else {
-        lv_obj_set_style_image_recolor(top_logo, lv_color_hex(COLOR_GREY_2), 0);
-        lv_obj_set_style_image_recolor_opa(top_logo, LV_OPA_COVER, 0);
-    }
-}
-
 static void update_layer(void)
 {
-    bool show = splash_done && disp_state != DISP_SLEEP;
-
-    set_hidden(layer_label, !show);
-
-    if (show) {
-        uint8_t idx = zmk_keymap_highest_layer_active();
-        lv_label_set_text(layer_label, layer_name(idx));
-        lv_obj_set_style_text_color(layer_label, lv_color_hex(state_text_color()), 0);
+    if (!splash_done) {
+        return;
     }
+
+    uint8_t idx = zmk_keymap_highest_layer_active();
+    lv_label_set_text(layer_label, layer_name(idx));
 }
 
 static void draw_segment_bar(lv_obj_t **segs, int percent)
 {
-    if (percent < 0) percent = 0;
-    if (percent > 100) percent = 100;
+    if (percent < 0) {
+        percent = 0;
+    }
+
+    if (percent > 100) {
+        percent = 100;
+    }
 
     int filled = (percent + 9) / 10;
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
-        if (!segs[i]) continue;
+        if (!segs[i]) {
+            continue;
+        }
 
         lv_obj_set_style_bg_color(
             segs[i],
-            lv_color_hex(i < filled ? state_on_color() : state_off_color()),
+            lv_color_hex(i < filled ? COLOR_ON : COLOR_OFF),
             0
         );
     }
@@ -198,21 +154,16 @@ static void draw_segment_bar(lv_obj_t **segs, int percent)
 
 static void update_side_battery(lv_obj_t *pct, lv_obj_t **segs, int percent, bool connected)
 {
-    bool show_pct = splash_done && connected && disp_state != DISP_SLEEP;
-    bool show_segs = splash_done && connected && disp_state == DISP_ACTIVE;
+    bool visible = splash_done && connected;
 
-    set_hidden(pct, !show_pct);
+    set_hidden(pct, !visible);
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
-        set_hidden(segs[i], !show_segs);
+        set_hidden(segs[i], !visible);
     }
 
-    if (show_pct) {
+    if (visible) {
         lv_label_set_text_fmt(pct, "%d%%", percent);
-        lv_obj_set_style_text_color(pct, lv_color_hex(state_text_color()), 0);
-    }
-
-    if (show_segs) {
         draw_segment_bar(segs, percent);
     }
 }
@@ -225,47 +176,42 @@ static void update_battery_visuals(void)
 
 static void update_link_status(void)
 {
-    bool show = splash_done && disp_state == DISP_ACTIVE;
-
-    set_hidden(left_link, !show);
-    set_hidden(right_link, !show);
-
-    if (!show) return;
+    if (!splash_done) {
+        return;
+    }
 
     lv_label_set_text(left_link, "L");
     lv_label_set_text(right_link, "R");
 
     lv_obj_set_style_text_color(
         left_link,
-        lv_color_hex(left_connected ? state_on_color() : state_off_color()),
+        lv_color_hex(left_connected ? COLOR_ON : COLOR_OFF),
         0
     );
 
     lv_obj_set_style_text_color(
         right_link,
-        lv_color_hex(right_connected ? state_on_color() : state_off_color()),
+        lv_color_hex(right_connected ? COLOR_ON : COLOR_OFF),
         0
     );
 }
 
 static void update_bt_profile(void)
 {
-    bool show = splash_done && disp_state == DISP_ACTIVE;
-
-    for (int i = 0; i < 5; i++) {
-        set_hidden(bt_dots[i], !show);
+    if (!splash_done) {
+        return;
     }
-
-    if (!show) return;
 
     uint8_t active = zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
-        if (!bt_dots[i]) continue;
+        if (!bt_dots[i]) {
+            continue;
+        }
 
         lv_obj_set_style_bg_color(
             bt_dots[i],
-            lv_color_hex(i == active ? state_on_color() : state_off_color()),
+            lv_color_hex(i == active ? COLOR_ON : COLOR_OFF),
             0
         );
 
@@ -276,61 +222,10 @@ static void update_bt_profile(void)
 
 static void refresh_all(void)
 {
-    update_logo_color();
     update_layer();
     update_bt_profile();
     update_link_status();
     update_battery_visuals();
-}
-
-static void enter_active(void)
-{
-    disp_state = DISP_ACTIVE;
-
-    if (sleep_timer) {
-        lv_timer_set_period(sleep_timer, 500);
-    }
-
-    set_hidden(top_logo, false);
-    refresh_all();
-    mark_activity();
-}
-
-static void enter_idle(void)
-{
-    disp_state = DISP_IDLE;
-
-    if (sleep_timer) {
-        lv_timer_set_period(sleep_timer, 500);
-    }
-
-    set_hidden(top_logo, false);
-    refresh_all();
-}
-
-static void enter_sleep(void)
-{
-    disp_state = DISP_SLEEP;
-
-    if (sleep_timer) {
-        lv_timer_set_period(sleep_timer, 500);
-    }
-
-    set_hidden(top_logo, false);
-    refresh_all();
-}
-
-static void sleep_check_cb(lv_timer_t *t)
-{
-    if (!splash_done) return;
-
-    int64_t elapsed = k_uptime_get() - last_activity;
-
-    if (disp_state == DISP_ACTIVE && elapsed >= IDLE_TIMEOUT_MS) {
-        enter_idle();
-    } else if (disp_state == DISP_IDLE && elapsed >= SLEEP_TIMEOUT_MS) {
-        enter_sleep();
-    }
 }
 
 static void build_splash(void)
@@ -415,11 +310,16 @@ static void show_status(struct k_work *work)
     }
 
     splash_done = true;
-    disp_state = DISP_ACTIVE;
-
-    mark_activity();
 
     set_hidden(top_logo, false);
+    set_hidden(layer_label, false);
+    set_hidden(left_link, false);
+    set_hidden(right_link, false);
+
+    for (int i = 0; i < 5; i++) {
+        set_hidden(bt_dots[i], false);
+    }
+
     refresh_all();
 }
 
@@ -431,20 +331,19 @@ static int ft_dongle_listener(const zmk_event_t *eh)
 
         if (ev->slot == 0) {
             left_connected = ev->connected;
-            if (!ev->connected) battery_left = 0;
+            if (!ev->connected) {
+                battery_left = 0;
+            }
         } else if (ev->slot == 1) {
             right_connected = ev->connected;
-            if (!ev->connected) battery_right = 0;
+            if (!ev->connected) {
+                battery_right = 0;
+            }
         }
 
         if (splash_done) {
-            if (disp_state != DISP_ACTIVE) {
-                enter_active();
-            } else {
-                mark_activity();
-                update_link_status();
-                update_battery_visuals();
-            }
+            update_link_status();
+            update_battery_visuals();
         }
 
         return ZMK_EV_EVENT_BUBBLE;
@@ -455,24 +354,12 @@ static int ft_dongle_listener(const zmk_event_t *eh)
     }
 
     if (as_zmk_layer_state_changed(eh)) {
-        if (disp_state != DISP_ACTIVE) {
-            enter_active();
-        } else {
-            mark_activity();
-            update_layer();
-        }
-
+        update_layer();
         return ZMK_EV_EVENT_BUBBLE;
     }
 
     if (as_zmk_ble_active_profile_changed(eh)) {
-        if (disp_state != DISP_ACTIVE) {
-            enter_active();
-        } else {
-            mark_activity();
-            update_bt_profile();
-        }
-
+        update_bt_profile();
         return ZMK_EV_EVENT_BUBBLE;
     }
 
@@ -486,12 +373,7 @@ static int ft_dongle_listener(const zmk_event_t *eh)
             battery_right = ev->state_of_charge;
         }
 
-        if (disp_state == DISP_ACTIVE) {
-            mark_activity();
-        }
-
         update_battery_visuals();
-
         return ZMK_EV_EVENT_BUBBLE;
     }
 
@@ -519,8 +401,6 @@ lv_obj_t *zmk_display_status_screen(void)
     build_layer_label();
     build_battery_widgets();
     build_bt_dots();
-
-    sleep_timer = lv_timer_create(sleep_check_cb, 500, NULL);
 
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
