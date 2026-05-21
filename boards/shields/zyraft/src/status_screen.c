@@ -34,9 +34,8 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define LAYER_FADE_OUT_MS     150
 #define LAYER_FADE_IN_MS      200
 #define BATTERY_FADE_MS       400
-#define CHARGE_TICK_MS        140
 #define SLEEP_FADE_MS         600
-#define SLEEP_BREATHE_MS      1800
+#define SLEEP_OPA_DIM         51   /* ~20% — widoczne ale bardzo przyciemnione */
 
 /* ── Colors ───────────────────────────────────────────────────── */
 #define COLOR_BG      0x000000
@@ -58,7 +57,6 @@ static bool    right_connected = false;
 static int     battery_left    = 0;
 static int     battery_right   = 0;
 static int64_t last_activity   = 0;
-static uint8_t charge_tick     = 0;
 
 /* Layer animation */
 static bool layer_anim_busy = false;
@@ -66,8 +64,7 @@ static char pending_layer[32] = "Base";
 
 /* ── Work / timers ────────────────────────────────────────────── */
 static struct k_work_delayable splash_work;
-static lv_timer_t *sleep_timer  = NULL;
-static lv_timer_t *charge_timer = NULL;
+static lv_timer_t *sleep_timer = NULL;
 
 /* ── Widgets ──────────────────────────────────────────────────── */
 static lv_obj_t *screen;
@@ -154,20 +151,6 @@ static void fade(lv_obj_t *obj, lv_opa_t from, lv_opa_t to,
     lv_anim_start(&a);
 }
 
-/* Breathing: oscillates opacity forever (for sleep screen) */
-static void start_breathe(lv_obj_t *obj)
-{
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_exec_cb(&a, opa_anim_cb);
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, LV_OPA_50, LV_OPA_COVER);
-    lv_anim_set_duration(&a, SLEEP_BREATHE_MS);
-    lv_anim_set_playback_duration(&a, SLEEP_BREATHE_MS);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&a);
-}
-
 /* ═══════════════════ Layer transition ══════════════════════════ */
 
 static void layer_fade_in_done(lv_anim_t *a)
@@ -210,14 +193,7 @@ static void draw_segment_bar(lv_obj_t **segs, int percent)
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
         if (!segs[i]) continue;
-        uint32_t color;
-        if (i < filled) {
-            /* Shimmer: one segment lights up white, cycles bottom→top */
-            int shimmer = (filled > 0) ? (charge_tick % filled) : 0;
-            color = (i == shimmer) ? COLOR_TEXT : COLOR_ON;
-        } else {
-            color = COLOR_OFF;
-        }
+        uint32_t color = (i < filled) ? COLOR_ON : COLOR_OFF;
         lv_obj_set_style_bg_color(segs[i], lv_color_hex(color), 0);
     }
 }
@@ -322,23 +298,11 @@ static void enter_sleep(void)
         lv_obj_align(sleep_logo, LV_ALIGN_CENTER, 0, 0);
     }
 
-    /* Fade in, then breathe */
+    /* Fade in do ~20% — przyciemnione ale widoczne */
     lv_anim_delete(sleep_logo, opa_anim_cb);
     lv_obj_set_style_opa(sleep_logo, 0, 0);
     set_hidden(sleep_logo, false);
-    fade(sleep_logo, 0, LV_OPA_COVER, SLEEP_FADE_MS, 0, NULL);
-
-    /* Start breathing after fade-in completes */
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_exec_cb(&a, opa_anim_cb);
-    lv_anim_set_var(&a, sleep_logo);
-    lv_anim_set_values(&a, LV_OPA_50, LV_OPA_COVER);
-    lv_anim_set_duration(&a, SLEEP_BREATHE_MS);
-    lv_anim_set_playback_duration(&a, SLEEP_BREATHE_MS);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_delay(&a, SLEEP_FADE_MS);   /* wait for fade-in */
-    lv_anim_start(&a);
+    fade(sleep_logo, 0, SLEEP_OPA_DIM, SLEEP_FADE_MS, 0, NULL);
 }
 
 static void wake_from_sleep(void)
@@ -376,17 +340,6 @@ static void sleep_check_cb(lv_timer_t *t)
     if ((k_uptime_get() - last_activity) >= SLEEP_TIMEOUT_MS) {
         enter_sleep();
     }
-}
-
-static void charge_anim_cb(lv_timer_t *t)
-{
-    (void)t;
-    if (!splash_done || is_sleeping) return;
-    charge_tick++;
-    if (left_connected  && battery_left  > 0)
-        draw_segment_bar(left_segments,  battery_left);
-    if (right_connected && battery_right > 0)
-        draw_segment_bar(right_segments, battery_right);
 }
 
 /* ═══════════════════ Build UI ══════════════════════════════════ */
@@ -590,9 +543,8 @@ lv_obj_t *zmk_display_status_screen(void)
 
     update_bt_profile();
 
-    /* Continuous LVGL timers (safe — created in display thread context) */
-    sleep_timer  = lv_timer_create(sleep_check_cb, 1000,        NULL);
-    charge_timer = lv_timer_create(charge_anim_cb, CHARGE_TICK_MS, NULL);
+    /* Sleep check timer — fires every 1s */
+    sleep_timer = lv_timer_create(sleep_check_cb, 1000, NULL);
 
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
