@@ -28,6 +28,7 @@
 #include <zmk/keymap.h>
 #include <zmk/ble.h>
 #include <zmk/hid_indicators.h>
+#include <zmk/hid.h>
 
 #include "falbatech_logo.h"
 
@@ -233,8 +234,8 @@ static void update_hid_indicators(void)
 {
     /* Tylko ACTIVE — pigułki CAPS / NUM */
     bool show = splash_done && (disp_state == DISP_ACTIVE);
-    set_hidden(caps_indicator, !(show && (hid_indicators & ZMK_HID_IND_CAPS_LOCK)));
-    set_hidden(num_indicator,  !(show && (hid_indicators & ZMK_HID_IND_NUM_LOCK)));
+    set_hidden(caps_indicator, !(show && (hid_indicators & HID_KBD_LED_CAPS_LOCK)));
+    set_hidden(num_indicator,  !(show && (hid_indicators & HID_KBD_LED_NUM_LOCK)));
 }
 
 static void refresh_all(void)
