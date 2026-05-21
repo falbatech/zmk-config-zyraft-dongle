@@ -199,7 +199,7 @@ static void build_splash(void) {
 static void build_top_logo(void) {
     top_logo = lv_image_create(screen);
     lv_image_set_src(top_logo, &zmk_studio_logo);
-    lv_obj_align(top_logo, LV_ALIGN_TOP_MID, 0, 10);
+    lv_obj_align(top_logo, LV_ALIGN_TOP_MID, 20, 10);
     set_hidden(top_logo, true);
 }
 
