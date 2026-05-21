@@ -1,5 +1,3 @@
-Poniżej masz wersję bez przygaszania, bez sleep, bez idle. Stały ekran cały czas aktywny.
-
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
