@@ -29,19 +29,14 @@ LV_IMG_DECLARE(zmk_studio_logo);
 LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 /* ── Timing ───────────────────────────────────────────────────── */
-#define SPLASH_DURATION_MS    2500
-#define SLEEP_TIMEOUT_MS      30000
-#define LAYER_FADE_OUT_MS     150
-#define LAYER_FADE_IN_MS      200
-#define BATTERY_FADE_MS       400
-#define SLEEP_FADE_MS         600
-#define SLEEP_OPA_DIM         51   /* ~20% — widoczne ale bardzo przyciemnione */
+#define SPLASH_DURATION_MS   2500
+#define SLEEP_TIMEOUT_MS     30000
 
 /* ── Colors ───────────────────────────────────────────────────── */
-#define COLOR_BG      0x000000
-#define COLOR_TEXT    0xFFFFFF
-#define COLOR_ON      0xE00039   /* → ZIELONY */
-#define COLOR_OFF     0x884890   /* → SZARY   */
+#define COLOR_BG     0x000000
+#define COLOR_TEXT   0xFFFFFF
+#define COLOR_ON     0xE00039   /* → ZIELONY */
+#define COLOR_OFF    0x884890   /* → SZARY   */
 
 /* ── Bar geometry ─────────────────────────────────────────────── */
 #define BAR_SEGMENTS  10
@@ -57,10 +52,6 @@ static bool    right_connected = false;
 static int     battery_left    = 0;
 static int     battery_right   = 0;
 static int64_t last_activity   = 0;
-
-/* Layer animation */
-static bool layer_anim_busy = false;
-static char pending_layer[32] = "Base";
 
 /* ── Work / timers ────────────────────────────────────────────── */
 static struct k_work_delayable splash_work;
@@ -129,60 +120,13 @@ static void mark_activity(void)
     last_activity = k_uptime_get();
 }
 
-/* ═══════════════════ Animation core ════════════════════════════ */
-
-static void opa_anim_cb(void *obj, int32_t v)
-{
-    lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0);
-}
-
-static void fade(lv_obj_t *obj, lv_opa_t from, lv_opa_t to,
-                 uint32_t ms, uint32_t delay_ms,
-                 lv_anim_ready_cb_t done_cb)
-{
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_exec_cb(&a, opa_anim_cb);
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, from, to);
-    lv_anim_set_duration(&a, ms);
-    lv_anim_set_delay(&a, delay_ms);
-    if (done_cb) lv_anim_set_ready_cb(&a, done_cb);
-    lv_anim_start(&a);
-}
-
-/* ═══════════════════ Layer transition ══════════════════════════ */
-
-static void layer_fade_in_done(lv_anim_t *a)
-{
-    (void)a;
-    layer_anim_busy = false;
-}
-
-static void layer_fade_out_done(lv_anim_t *a)
-{
-    (void)a;
-    lv_label_set_text(layer_label, pending_layer);
-    fade(layer_label, 0, LV_OPA_COVER, LAYER_FADE_IN_MS, 0, layer_fade_in_done);
-}
+/* ═══════════════════ Update functions ══════════════════════════ */
 
 static void update_layer(void)
 {
     uint8_t idx = zmk_keymap_highest_layer_active();
-    strncpy(pending_layer, layer_name(idx), sizeof(pending_layer) - 1);
-    pending_layer[sizeof(pending_layer) - 1] = '\0';
-
-    if (!splash_done || is_sleeping) return;
-
-    /* Already animating — the ready cb will pick up pending_layer */
-    if (layer_anim_busy) return;
-
-    layer_anim_busy = true;
-    fade(layer_label, LV_OPA_COVER, 0,
-         LAYER_FADE_OUT_MS, 0, layer_fade_out_done);
+    lv_label_set_text(layer_label, layer_name(idx));
 }
-
-/* ═══════════════════ Battery bars ══════════════════════════════ */
 
 static void draw_segment_bar(lv_obj_t **segs, int percent)
 {
@@ -201,33 +145,15 @@ static void draw_segment_bar(lv_obj_t **segs, int percent)
 static void update_side_battery(lv_obj_t *pct, lv_obj_t **segs,
                                 int percent, bool connected)
 {
-    bool visible    = splash_done && connected && !is_sleeping;
-    bool was_hidden = lv_obj_has_flag(pct, LV_OBJ_FLAG_HIDDEN);
+    bool visible = splash_done && connected && !is_sleeping;
 
-    if (!visible) {
-        set_hidden(pct, true);
-        for (int i = 0; i < BAR_SEGMENTS; i++) set_hidden(segs[i], true);
-        return;
+    set_hidden(pct, !visible);
+    for (int i = 0; i < BAR_SEGMENTS; i++) set_hidden(segs[i], !visible);
+
+    if (visible) {
+        lv_label_set_text_fmt(pct, "%d%%", percent);
+        draw_segment_bar(segs, percent);
     }
-
-    /* Unhide */
-    set_hidden(pct, false);
-    for (int i = 0; i < BAR_SEGMENTS; i++) set_hidden(segs[i], false);
-
-    if (was_hidden) {
-        /* Fade in — stagger segments for cascading effect */
-        lv_obj_set_style_opa(pct, 0, 0);
-        fade(pct, 0, LV_OPA_COVER, BATTERY_FADE_MS, 0, NULL);
-
-        for (int i = 0; i < BAR_SEGMENTS; i++) {
-            lv_obj_set_style_opa(segs[i], 0, 0);
-            fade(segs[i], 0, LV_OPA_COVER,
-                 BATTERY_FADE_MS, (uint32_t)i * 25, NULL);
-        }
-    }
-
-    lv_label_set_text_fmt(pct, "%d%%", percent);
-    draw_segment_bar(segs, percent);
 }
 
 static void update_battery_visuals(void)
@@ -235,8 +161,6 @@ static void update_battery_visuals(void)
     update_side_battery(left_percent,  left_segments,  battery_left,  left_connected);
     update_side_battery(right_percent, right_segments, battery_right, right_connected);
 }
-
-/* ═══════════════════ BT dots ═══════════════════════════════════ */
 
 static void update_bt_profile(void)
 {
@@ -254,8 +178,6 @@ static void update_bt_profile(void)
     }
 }
 
-/* ═══════════════════ Link status ═══════════════════════════════ */
-
 static void update_link_status(void)
 {
     lv_label_set_text(left_link,  "L");
@@ -268,12 +190,18 @@ static void update_link_status(void)
 
 /* ═══════════════════ Sleep ═════════════════════════════════════ */
 
-static void set_status_ui_hidden(bool hidden)
+static void set_main_ui_hidden(bool hidden)
 {
-    set_hidden(top_logo,     hidden);
-    set_hidden(layer_label,  hidden);
-    set_hidden(left_link,    hidden);
-    set_hidden(right_link,   hidden);
+    set_hidden(top_logo,      hidden);
+    set_hidden(layer_label,   hidden);
+    set_hidden(left_link,     hidden);
+    set_hidden(right_link,    hidden);
+    set_hidden(left_percent,  hidden);
+    set_hidden(right_percent, hidden);
+    for (int i = 0; i < BAR_SEGMENTS; i++) {
+        set_hidden(left_segments[i],  hidden);
+        set_hidden(right_segments[i], hidden);
+    }
     for (int i = 0; i < 5; i++) set_hidden(bt_dots[i], hidden);
 }
 
@@ -282,27 +210,24 @@ static void enter_sleep(void)
     if (is_sleeping || !splash_done) return;
     is_sleeping = true;
 
-    /* Hide main UI */
-    set_status_ui_hidden(true);
-    set_hidden(left_percent,  true);
-    set_hidden(right_percent, true);
-    for (int i = 0; i < BAR_SEGMENTS; i++) {
-        set_hidden(left_segments[i],  true);
-        set_hidden(right_segments[i], true);
-    }
+    set_main_ui_hidden(true);
 
-    /* Build sleep logo once */
+    /* Zbuduj sleep logo tylko raz */
     if (!sleep_logo) {
         sleep_logo = lv_image_create(screen);
-        lv_image_set_src(sleep_logo, &falbatech_logo_large);
+        lv_image_set_src(sleep_logo, &falbatech_logo_small);
         lv_obj_align(sleep_logo, LV_ALIGN_CENTER, 0, 0);
+
+        /* Szary odcień — całkowita zmiana koloru na szary */
+        lv_obj_set_style_image_recolor(sleep_logo,
+            lv_color_hex(0x888888), 0);
+        lv_obj_set_style_image_recolor_opa(sleep_logo, LV_OPA_COVER, 0);
+
+        /* Przyciemnione do ~40% */
+        lv_obj_set_style_opa(sleep_logo, LV_OPA_40, 0);
     }
 
-    /* Fade in do ~20% — przyciemnione ale widoczne */
-    lv_anim_delete(sleep_logo, opa_anim_cb);
-    lv_obj_set_style_opa(sleep_logo, 0, 0);
     set_hidden(sleep_logo, false);
-    fade(sleep_logo, 0, SLEEP_OPA_DIM, SLEEP_FADE_MS, 0, NULL);
 }
 
 static void wake_from_sleep(void)
@@ -310,28 +235,16 @@ static void wake_from_sleep(void)
     if (!is_sleeping) return;
     is_sleeping = false;
 
-    /* Stop breathing, hide sleep logo */
-    if (sleep_logo) {
-        lv_anim_delete(sleep_logo, opa_anim_cb);
-        set_hidden(sleep_logo, true);
-    }
+    set_hidden(sleep_logo, true);
+    set_main_ui_hidden(false);
 
-    /* Restore main UI */
-    set_status_ui_hidden(false);
-
-    /* Layer: restore immediately (no fade-out animation on wake) */
-    layer_anim_busy = false;
-    lv_obj_set_style_opa(layer_label, LV_OPA_COVER, 0);
-    lv_label_set_text(layer_label, pending_layer);
-
+    update_layer();
     update_bt_profile();
     update_link_status();
-    update_battery_visuals();   /* battery fades in if connected */
+    update_battery_visuals();
 
     mark_activity();
 }
-
-/* ═══════════════════ LVGL timer callbacks ══════════════════════ */
 
 static void sleep_check_cb(lv_timer_t *t)
 {
@@ -428,34 +341,13 @@ static void show_status(struct k_work *work)
     splash_done = true;
     mark_activity();
 
-    /* Set initial layer text directly (no fade-out needed from blank) */
-    uint8_t idx = zmk_keymap_highest_layer_active();
-    strncpy(pending_layer, layer_name(idx), sizeof(pending_layer) - 1);
-    pending_layer[sizeof(pending_layer) - 1] = '\0';
-    lv_label_set_text(layer_label, pending_layer);
+    set_hidden(top_logo,    false);
+    set_hidden(layer_label, false);
+    set_hidden(left_link,   false);
+    set_hidden(right_link,  false);
+    for (int i = 0; i < 5; i++) set_hidden(bt_dots[i], false);
 
-    /* Show main UI elements */
-    set_status_ui_hidden(false);
-
-    /* Fade everything in from transparent */
-    lv_obj_set_style_opa(top_logo,    0, 0);
-    lv_obj_set_style_opa(layer_label, 0, 0);
-    fade(top_logo,    0, LV_OPA_COVER, BATTERY_FADE_MS, 0,   NULL);
-    fade(layer_label, 0, LV_OPA_COVER, BATTERY_FADE_MS, 100, NULL);
-
-    /* L/R labels fade in */
-    lv_obj_set_style_opa(left_link,  0, 0);
-    lv_obj_set_style_opa(right_link, 0, 0);
-    fade(left_link,  0, LV_OPA_COVER, BATTERY_FADE_MS, 200, NULL);
-    fade(right_link, 0, LV_OPA_COVER, BATTERY_FADE_MS, 200, NULL);
-
-    /* BT dots fade in */
-    for (int i = 0; i < 5; i++) {
-        lv_obj_set_style_opa(bt_dots[i], 0, 0);
-        fade(bt_dots[i], 0, LV_OPA_COVER,
-             BATTERY_FADE_MS, (uint32_t)(250 + i * 40), NULL);
-    }
-
+    update_layer();
     update_bt_profile();
     update_link_status();
     update_battery_visuals();
@@ -465,7 +357,6 @@ static void show_status(struct k_work *work)
 
 static int ft_dongle_listener(const zmk_event_t *eh)
 {
-    /* Split central status — handled before splash gate */
     if (as_zmk_split_central_status_changed(eh)) {
         const struct zmk_split_central_status_changed *ev =
             as_zmk_split_central_status_changed(eh);
@@ -490,7 +381,6 @@ static int ft_dongle_listener(const zmk_event_t *eh)
 
     if (!splash_done) return ZMK_EV_EVENT_BUBBLE;
 
-    /* Any event wakes the display */
     if (is_sleeping) {
         wake_from_sleep();
         return ZMK_EV_EVENT_BUBBLE;
@@ -543,7 +433,6 @@ lv_obj_t *zmk_display_status_screen(void)
 
     update_bt_profile();
 
-    /* Sleep check timer — fires every 1s */
     sleep_timer = lv_timer_create(sleep_check_cb, 1000, NULL);
 
     k_work_init_delayable(&splash_work, show_status);
