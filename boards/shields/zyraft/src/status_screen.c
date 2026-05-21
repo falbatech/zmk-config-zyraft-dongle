@@ -1,6 +1,16 @@
 /*
  * Zyra FT Dongle - FalbaTech Status Screen
  * GC9A01 240x240
+ *
+ * Stały ekran bez sleep i bez przygaszania.
+ * Splash: logo FalbaTech
+ * Main: logo ZMK Studio, warstwa, bateria L/R, BT profile, CAPS/NUM
+ *
+ * Kolory lv_color_hex() — wartości nieintuicyjne:
+ *   0xE00039 -> zielony
+ *   0x884890 -> siwy
+ *   0xFFFFFF -> biały
+ *   0x000000 -> czarny
  */
 
 #include <zephyr/kernel.h>
@@ -13,6 +23,7 @@
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/events/split_central_status_changed.h>
+#include <zmk/events/hid_indicators_changed.h>
 
 #include <zmk/keymap.h>
 #include <zmk/ble.h>
@@ -25,21 +36,26 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define SPLASH_DURATION_MS 2500
 
-#define COLOR_BG      0x000000
-#define COLOR_TEXT    0xFFFFFF
+#define COLOR_BG     0x000000
+#define COLOR_TEXT   0xFFFFFF
+#define COLOR_ON     0xE00039
+#define COLOR_OFF    0x884890
 
-#define COLOR_ON      0xE00039   /* zielony */
-#define COLOR_OFF     0x884890   /* siwy */
+#define BAR_SEGMENTS 10
+#define BAR_W 18
+#define SEG_H 5
+#define SEG_GAP 2
 
-#define BAR_SEGMENTS  10
-#define BAR_W         18
-#define SEG_H          5
-#define SEG_GAP        2
+#define HID_NUM_LOCK_BIT  0
+#define HID_CAPS_LOCK_BIT 1
 
 static bool splash_done = false;
 
 static bool left_connected = false;
 static bool right_connected = false;
+
+static bool caps_lock_on = false;
+static bool num_lock_on = false;
 
 static int battery_left = 0;
 static int battery_right = 0;
@@ -57,6 +73,9 @@ static lv_obj_t *right_percent;
 static lv_obj_t *left_link;
 static lv_obj_t *right_link;
 
+static lv_obj_t *caps_label;
+static lv_obj_t *num_label;
+
 static lv_obj_t *left_segments[BAR_SEGMENTS];
 static lv_obj_t *right_segments[BAR_SEGMENTS];
 
@@ -64,9 +83,7 @@ static lv_obj_t *bt_dots[5];
 
 static void set_hidden(lv_obj_t *obj, bool hidden)
 {
-    if (!obj) {
-        return;
-    }
+    if (!obj) return;
 
     if (hidden) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -100,9 +117,7 @@ static const char *layer_name(uint8_t layer)
 {
     const char *name = zmk_keymap_layer_name(layer);
 
-    if (name) {
-        return name;
-    }
+    if (name) return name;
 
     switch (layer) {
         case 0: return "Base";
@@ -117,33 +132,24 @@ static const char *layer_name(uint8_t layer)
 
 static void update_layer(void)
 {
-    if (!splash_done) {
-        return;
-    }
+    if (!splash_done) return;
 
-    uint8_t idx = zmk_keymap_highest_layer_active();
-    lv_label_set_text(layer_label, layer_name(idx));
+    uint8_t layer = zmk_keymap_highest_layer_active();
+    lv_label_set_text(layer_label, layer_name(layer));
 }
 
-static void draw_segment_bar(lv_obj_t **segs, int percent)
+static void draw_segment_bar(lv_obj_t **segments, int percent)
 {
-    if (percent < 0) {
-        percent = 0;
-    }
-
-    if (percent > 100) {
-        percent = 100;
-    }
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
 
     int filled = (percent + 9) / 10;
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
-        if (!segs[i]) {
-            continue;
-        }
+        if (!segments[i]) continue;
 
         lv_obj_set_style_bg_color(
-            segs[i],
+            segments[i],
             lv_color_hex(i < filled ? COLOR_ON : COLOR_OFF),
             0
         );
@@ -160,10 +166,10 @@ static void update_side_battery(lv_obj_t *pct, lv_obj_t **segs, int percent, boo
         set_hidden(segs[i], !visible);
     }
 
-    if (visible) {
-        lv_label_set_text_fmt(pct, "%d%%", percent);
-        draw_segment_bar(segs, percent);
-    }
+    if (!visible) return;
+
+    lv_label_set_text_fmt(pct, "%d%%", percent);
+    draw_segment_bar(segs, percent);
 }
 
 static void update_battery_visuals(void)
@@ -174,9 +180,7 @@ static void update_battery_visuals(void)
 
 static void update_link_status(void)
 {
-    if (!splash_done) {
-        return;
-    }
+    if (!splash_done) return;
 
     lv_label_set_text(left_link, "L");
     lv_label_set_text(right_link, "R");
@@ -196,16 +200,12 @@ static void update_link_status(void)
 
 static void update_bt_profile(void)
 {
-    if (!splash_done) {
-        return;
-    }
+    if (!splash_done) return;
 
     uint8_t active = zmk_ble_active_profile_index();
 
     for (int i = 0; i < 5; i++) {
-        if (!bt_dots[i]) {
-            continue;
-        }
+        if (!bt_dots[i]) continue;
 
         lv_obj_set_style_bg_color(
             bt_dots[i],
@@ -218,12 +218,33 @@ static void update_bt_profile(void)
     }
 }
 
+static void update_lock_status(void)
+{
+    if (!splash_done) return;
+
+    lv_label_set_text(caps_label, "CAPS");
+    lv_label_set_text(num_label, "NUM");
+
+    lv_obj_set_style_text_color(
+        caps_label,
+        lv_color_hex(caps_lock_on ? COLOR_ON : COLOR_OFF),
+        0
+    );
+
+    lv_obj_set_style_text_color(
+        num_label,
+        lv_color_hex(num_lock_on ? COLOR_ON : COLOR_OFF),
+        0
+    );
+}
+
 static void refresh_all(void)
 {
     update_layer();
-    update_bt_profile();
     update_link_status();
     update_battery_visuals();
+    update_bt_profile();
+    update_lock_status();
 }
 
 static void build_splash(void)
@@ -250,18 +271,18 @@ static void build_layer_label(void)
     set_hidden(layer_label, true);
 }
 
-static void build_segment_bar(lv_obj_t **segs, int x)
+static void build_segment_bar(lv_obj_t **segments, int x)
 {
     int total_h = (BAR_SEGMENTS * SEG_H) + ((BAR_SEGMENTS - 1) * SEG_GAP);
     int start_y = 40 + (total_h / 2);
 
     for (int i = 0; i < BAR_SEGMENTS; i++) {
-        segs[i] = make_box(screen, BAR_W, SEG_H, COLOR_OFF, 2);
+        segments[i] = make_box(screen, BAR_W, SEG_H, COLOR_OFF, 2);
 
         int y = start_y - (i * (SEG_H + SEG_GAP));
 
-        lv_obj_align(segs[i], LV_ALIGN_CENTER, x, y);
-        set_hidden(segs[i], true);
+        lv_obj_align(segments[i], LV_ALIGN_CENTER, x, y);
+        set_hidden(segments[i], true);
     }
 }
 
@@ -300,6 +321,21 @@ static void build_bt_dots(void)
     }
 }
 
+static void build_lock_widgets(void)
+{
+    caps_label = lv_label_create(screen);
+    lv_label_set_text(caps_label, "CAPS");
+    style_text(caps_label, COLOR_OFF, &lv_font_montserrat_14);
+    lv_obj_align(caps_label, LV_ALIGN_BOTTOM_MID, -38, -34);
+    set_hidden(caps_label, true);
+
+    num_label = lv_label_create(screen);
+    lv_label_set_text(num_label, "NUM");
+    style_text(num_label, COLOR_OFF, &lv_font_montserrat_14);
+    lv_obj_align(num_label, LV_ALIGN_BOTTOM_MID, 38, -34);
+    set_hidden(num_label, true);
+}
+
 static void show_status(struct k_work *work)
 {
     if (splash_logo) {
@@ -313,6 +349,8 @@ static void show_status(struct k_work *work)
     set_hidden(layer_label, false);
     set_hidden(left_link, false);
     set_hidden(right_link, false);
+    set_hidden(caps_label, false);
+    set_hidden(num_label, false);
 
     for (int i = 0; i < 5; i++) {
         set_hidden(bt_dots[i], false);
@@ -329,14 +367,10 @@ static int ft_dongle_listener(const zmk_event_t *eh)
 
         if (ev->slot == 0) {
             left_connected = ev->connected;
-            if (!ev->connected) {
-                battery_left = 0;
-            }
+            if (!ev->connected) battery_left = 0;
         } else if (ev->slot == 1) {
             right_connected = ev->connected;
-            if (!ev->connected) {
-                battery_right = 0;
-            }
+            if (!ev->connected) battery_right = 0;
         }
 
         if (splash_done) {
@@ -375,6 +409,17 @@ static int ft_dongle_listener(const zmk_event_t *eh)
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    if (as_zmk_hid_indicators_changed(eh)) {
+        const struct zmk_hid_indicators_changed *ev =
+            as_zmk_hid_indicators_changed(eh);
+
+        num_lock_on = ev->indicators & (1 << HID_NUM_LOCK_BIT);
+        caps_lock_on = ev->indicators & (1 << HID_CAPS_LOCK_BIT);
+
+        update_lock_status();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     return ZMK_EV_EVENT_BUBBLE;
 }
 
@@ -383,6 +428,7 @@ ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_central_status_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_hid_indicators_changed);
 
 lv_obj_t *zmk_display_status_screen(void)
 {
@@ -399,6 +445,7 @@ lv_obj_t *zmk_display_status_screen(void)
     build_layer_label();
     build_battery_widgets();
     build_bt_dots();
+    build_lock_widgets();
 
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
