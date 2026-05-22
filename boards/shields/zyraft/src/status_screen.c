@@ -6,11 +6,6 @@
  *   0xE00039 → ZIELONY     0x884890 → SZARY
  *   0xFFFFFF → BIAŁY       0x000000 → CZARNY
  * Surowe dane obrazów (lv_image_dsc_t): RGB565 big-endian.
- *
- * Stany ekranu:
- *   ACTIVE  — pełne UI, overlay 0%
- *   IDLE    — ZMK logo + layer + % baterii, overlay 80% (20% jasności)
- *   SLEEP   — tylko ZMK logo, overlay 92% (~8% jasności)
  */
 
 #include <zephyr/kernel.h>
@@ -37,20 +32,13 @@ LV_IMG_DECLARE(zmk_studio_logo);
 LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 
 /* ── Timing ───────────────────────────────────────────────────── */
-#define SPLASH_DURATION_MS   2500
-#define IDLE_TIMEOUT_MS      25000   /* 25s bez aktywności → IDLE  */
-#define SLEEP_TIMEOUT_MS     90000   /* 90s bez aktywności → SLEEP */
-
-/* ── Dim overlay opacity ──────────────────────────────────────── */
-#define DIM_ACTIVE   LV_OPA_0    /*   0% czerni — pełna jasność   */
-#define DIM_IDLE     LV_OPA_80   /*  80% czerni — 20% jasności    */
-#define DIM_SLEEP    234         /*  92% czerni — ~8% jasności    */
+#define SPLASH_DURATION_MS  2500
 
 /* ── Colors ───────────────────────────────────────────────────── */
-#define COLOR_BG     0x000000
-#define COLOR_TEXT   0xFFFFFF
-#define COLOR_ON     0xE00039   /* → ZIELONY */
-#define COLOR_OFF    0x884890   /* → SZARY   */
+#define COLOR_BG    0x000000
+#define COLOR_TEXT  0xFFFFFF
+#define COLOR_ON    0xE00039   /* → ZIELONY */
+#define COLOR_OFF   0x884890   /* → SZARY   */
 
 /* ── Bar geometry ─────────────────────────────────────────────── */
 #define BAR_SEGMENTS  10
@@ -58,38 +46,31 @@ LOG_MODULE_REGISTER(ft_dongle_screen, CONFIG_LOG_DEFAULT_LEVEL);
 #define SEG_H          5
 #define SEG_GAP        2
 
-/* ── Display state ────────────────────────────────────────────── */
-typedef enum { DISP_ACTIVE, DISP_IDLE, DISP_SLEEP } disp_state_t;
-static disp_state_t disp_state = DISP_ACTIVE;
-
 /* ── State ────────────────────────────────────────────────────── */
 static bool                 splash_done     = false;
 static bool                 left_connected  = false;
 static bool                 right_connected = false;
 static int                  battery_left    = 0;
 static int                  battery_right   = 0;
-static int64_t              last_activity   = 0;
 static zmk_hid_indicators_t hid_indicators  = 0;
 
-/* ── Work / timers ────────────────────────────────────────────── */
+/* ── Work ─────────────────────────────────────────────────────── */
 static struct k_work_delayable splash_work;
-static lv_timer_t *sleep_timer = NULL;
 
 /* ── Widgets ──────────────────────────────────────────────────── */
 static lv_obj_t *screen;
-static lv_obj_t *dim_overlay;      /* czarna nakładka regulująca jasność */
 static lv_obj_t *splash_logo;
-static lv_obj_t *top_logo;         /* ZMK Studio — widoczne w każdym stanie */
-static lv_obj_t *layer_label;      /* ACTIVE + IDLE */
-static lv_obj_t *left_percent;     /* ACTIVE + IDLE (jeśli połączony) */
+static lv_obj_t *top_logo;
+static lv_obj_t *layer_label;
+static lv_obj_t *left_percent;
 static lv_obj_t *right_percent;
-static lv_obj_t *left_link;        /* ACTIVE only */
+static lv_obj_t *left_link;
 static lv_obj_t *right_link;
-static lv_obj_t *left_segments[BAR_SEGMENTS];   /* ACTIVE only */
+static lv_obj_t *left_segments[BAR_SEGMENTS];
 static lv_obj_t *right_segments[BAR_SEGMENTS];
-static lv_obj_t *bt_dots[5];       /* ACTIVE only — 5 profili BT hosta */
-static lv_obj_t *caps_indicator;   /* ACTIVE only — zielona pigułka CAPS */
-static lv_obj_t *num_indicator;    /* ACTIVE only — zielona pigułka NUM  */
+static lv_obj_t *bt_dots[5];
+static lv_obj_t *caps_indicator;
+static lv_obj_t *num_indicator;
 
 /* ═══════════════════ Helpers ═══════════════════════════════════ */
 
@@ -135,26 +116,12 @@ static const char *layer_name(uint8_t layer)
     }
 }
 
-static void mark_activity(void)
-{
-    last_activity = k_uptime_get();
-}
-
-static void set_overlay(lv_opa_t opa)
-{
-    lv_obj_set_style_bg_opa(dim_overlay, opa, 0);
-}
-
 /* ═══════════════════ Update functions ══════════════════════════ */
-
-/* Widoczność zależy od stanu — wywoływane po każdej zmianie stanu/danych */
 
 static void update_layer(void)
 {
-    /* ACTIVE + IDLE */
-    bool show = splash_done && (disp_state != DISP_SLEEP);
-    set_hidden(layer_label, !show);
-    if (show) {
+    set_hidden(layer_label, !splash_done);
+    if (splash_done) {
         uint8_t idx = zmk_keymap_highest_layer_active();
         lv_label_set_text(layer_label, layer_name(idx));
     }
@@ -175,15 +142,13 @@ static void draw_segment_bar(lv_obj_t **segs, int percent)
 static void update_side_battery(lv_obj_t *pct, lv_obj_t **segs,
                                 int percent, bool connected)
 {
-    /* Procent: ACTIVE + IDLE | Segmenty: tylko ACTIVE */
-    bool show_pct  = splash_done && connected && (disp_state != DISP_SLEEP);
-    bool show_segs = splash_done && connected && (disp_state == DISP_ACTIVE);
-
-    set_hidden(pct, !show_pct);
-    for (int i = 0; i < BAR_SEGMENTS; i++) set_hidden(segs[i], !show_segs);
-
-    if (show_pct)  lv_label_set_text_fmt(pct, "%d%%", percent);
-    if (show_segs) draw_segment_bar(segs, percent);
+    bool show = splash_done && connected;
+    set_hidden(pct, !show);
+    for (int i = 0; i < BAR_SEGMENTS; i++) set_hidden(segs[i], !show);
+    if (show) {
+        lv_label_set_text_fmt(pct, "%d%%", percent);
+        draw_segment_bar(segs, percent);
+    }
 }
 
 static void update_battery_visuals(void)
@@ -194,11 +159,9 @@ static void update_battery_visuals(void)
 
 static void update_link_status(void)
 {
-    /* Tylko ACTIVE */
-    bool show = splash_done && (disp_state == DISP_ACTIVE);
-    set_hidden(left_link,  !show);
-    set_hidden(right_link, !show);
-    if (!show) return;
+    set_hidden(left_link,  !splash_done);
+    set_hidden(right_link, !splash_done);
+    if (!splash_done) return;
 
     lv_label_set_text(left_link,  "L");
     lv_label_set_text(right_link, "R");
@@ -208,13 +171,10 @@ static void update_link_status(void)
         lv_color_hex(right_connected ? COLOR_ON : COLOR_OFF), 0);
 }
 
-
 static void update_bt_profile(void)
 {
-    /* Tylko ACTIVE */
-    bool show = splash_done && (disp_state == DISP_ACTIVE);
-    for (int i = 0; i < 5; i++) set_hidden(bt_dots[i], !show);
-    if (!show) return;
+    for (int i = 0; i < 5; i++) set_hidden(bt_dots[i], !splash_done);
+    if (!splash_done) return;
 
     uint8_t active = zmk_ble_active_profile_index();
     for (int i = 0; i < 5; i++) {
@@ -232,10 +192,8 @@ static void update_bt_profile(void)
 
 static void update_hid_indicators(void)
 {
-    /* Tylko ACTIVE — pigułki CAPS / NUM */
-    bool show = splash_done && (disp_state == DISP_ACTIVE);
-    set_hidden(caps_indicator, !(show && (hid_indicators & HID_KBD_LED_CAPS_LOCK)));
-    set_hidden(num_indicator,  !(show && (hid_indicators & HID_KBD_LED_NUM_LOCK)));
+    set_hidden(caps_indicator, !(splash_done && (hid_indicators & HID_KBD_LED_CAPS_LOCK)));
+    set_hidden(num_indicator,  !(splash_done && (hid_indicators & HID_KBD_LED_NUM_LOCK)));
 }
 
 static void refresh_all(void)
@@ -245,56 +203,6 @@ static void refresh_all(void)
     update_link_status();
     update_battery_visuals();
     update_hid_indicators();
-}
-
-/* ═══════════════════ State transitions ═════════════════════════ */
-
-static void enter_active(void)
-{
-    disp_state = DISP_ACTIVE;
-    set_overlay(DIM_ACTIVE);
-    lv_timer_set_period(sleep_timer, 1000);  /* normalny polling */
-
-    set_hidden(top_logo, false);
-    refresh_all();
-    mark_activity();
-}
-
-static void enter_idle(void)
-{
-    disp_state = DISP_IDLE;
-    set_overlay(DIM_IDLE);
-    /* Zawartość: ZMK logo + layer + % baterii — reszta ukryta przez update fns */
-    refresh_all();
-}
-
-static void enter_sleep(void)
-{
-    disp_state = DISP_SLEEP;
-    set_overlay(DIM_SLEEP);
-    lv_timer_set_period(sleep_timer, 5000);  /* polling co 5s — minimalne CPU */
-    /* Zawartość: tylko ZMK logo (widoczne ~8%) — reszta ukryta przez update fns */
-    refresh_all();
-}
-
-/* ── Sleep check (LVGL timer, co 1s / 5s) ────────────────────── */
-
-static void sleep_check_cb(lv_timer_t *t)
-{
-    if (!splash_done) return;
-
-    int64_t elapsed = k_uptime_get() - last_activity;
-
-    switch (disp_state) {
-    case DISP_ACTIVE:
-        if (elapsed >= IDLE_TIMEOUT_MS) enter_idle();
-        break;
-    case DISP_IDLE:
-        if (elapsed >= SLEEP_TIMEOUT_MS) enter_sleep();
-        break;
-    case DISP_SLEEP:
-        break;  /* budzi zdarzenie, nie timer */
-    }
 }
 
 /* ═══════════════════ Build UI ══════════════════════════════════ */
@@ -383,20 +291,13 @@ static void build_battery_widgets(void)
     build_segment_bar(right_segments,  76);
 }
 
-
-static void build_dim_overlay(void)
+static void build_bt_dots(void)
 {
-    /* Czarna nakładka na wierzchu wszystkich widgetów */
-    dim_overlay = lv_obj_create(screen);
-    lv_obj_set_size(dim_overlay, 240, 240);
-    lv_obj_set_pos(dim_overlay, 0, 0);
-    lv_obj_set_style_bg_color(dim_overlay, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_bg_opa(dim_overlay, LV_OPA_0, 0);   /* transparentna na start */
-    lv_obj_set_style_border_width(dim_overlay, 0, 0);
-    lv_obj_set_style_pad_all(dim_overlay, 0, 0);
-    lv_obj_set_style_radius(dim_overlay, 0, 0);
-    lv_obj_clear_flag(dim_overlay, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(dim_overlay, LV_OBJ_FLAG_CLICKABLE);
+    for (int i = 0; i < 5; i++) {
+        bt_dots[i] = make_box(screen, 8, 8, COLOR_OFF, 4);
+        lv_obj_align(bt_dots[i], LV_ALIGN_BOTTOM_MID, -32 + (i * 16), -14);
+        set_hidden(bt_dots[i], true);
+    }
 }
 
 /* ═══════════════════ Splash → main ════════════════════════════ */
@@ -409,10 +310,6 @@ static void show_status(struct k_work *work)
     }
 
     splash_done = true;
-    disp_state = DISP_ACTIVE;
-    set_overlay(DIM_ACTIVE);
-    mark_activity();
-
     set_hidden(top_logo, false);
     refresh_all();
 }
@@ -435,8 +332,6 @@ static int ft_dongle_listener(const zmk_event_t *eh)
         }
 
         if (splash_done) {
-            if (disp_state != DISP_ACTIVE) enter_active();
-            else mark_activity();
             update_link_status();
             update_battery_visuals();
         }
@@ -446,10 +341,12 @@ static int ft_dongle_listener(const zmk_event_t *eh)
     if (!splash_done) return ZMK_EV_EVENT_BUBBLE;
 
     if (as_zmk_layer_state_changed(eh)) {
-        /* Layer = aktywność użytkownika → zawsze budzi */
-        if (disp_state != DISP_ACTIVE) enter_active();
-        else mark_activity();
         update_layer();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    if (as_zmk_ble_active_profile_changed(eh)) {
+        update_bt_profile();
         return ZMK_EV_EVENT_BUBBLE;
     }
 
@@ -460,9 +357,6 @@ static int ft_dongle_listener(const zmk_event_t *eh)
         if (ev->source == 0)      battery_left  = ev->state_of_charge;
         else if (ev->source == 1) battery_right = ev->state_of_charge;
 
-        /* Bateria: aktualizuj dane, ale nie budź ze SLEEP —
-           tylko odśwież wyświetlane info w bieżącym stanie */
-        if (disp_state == DISP_ACTIVE) mark_activity();
         update_battery_visuals();
         return ZMK_EV_EVENT_BUBBLE;
     }
@@ -471,10 +365,6 @@ static int ft_dongle_listener(const zmk_event_t *eh)
         const struct zmk_hid_indicators_changed *ev =
             as_zmk_hid_indicators_changed(eh);
         hid_indicators = ev->indicators;
-
-        /* Zmiana wskaźnika = aktywność → budź ekran */
-        if (disp_state != DISP_ACTIVE) enter_active();
-        else mark_activity();
         update_hid_indicators();
         return ZMK_EV_EVENT_BUBBLE;
     }
@@ -485,8 +375,9 @@ static int ft_dongle_listener(const zmk_event_t *eh)
 ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_central_status_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_hid_indicators_changed); 
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_hid_indicators_changed);
 
 /* ═══════════════════ Init ══════════════════════════════════════ */
 
@@ -504,10 +395,7 @@ lv_obj_t *zmk_display_status_screen(void)
     build_layer_label();
     build_indicators();
     build_battery_widgets();
-    /* Nakładka musi być ostatnia — na wierzchu całej hierarchii */
-    build_dim_overlay();
-
-    sleep_timer = lv_timer_create(sleep_check_cb, 1000, NULL);
+    build_bt_dots();
 
     k_work_init_delayable(&splash_work, show_status);
     k_work_schedule(&splash_work, K_MSEC(SPLASH_DURATION_MS));
