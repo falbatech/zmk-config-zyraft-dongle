@@ -486,7 +486,7 @@ ZMK_LISTENER(ft_dongle_screen, ft_dongle_listener);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_split_central_status_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_peripheral_battery_state_changed);
-ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_hid_indicators_changed);
+ZMK_SUBSCRIPTION(ft_dongle_screen, zmk_hid_indicators_changed); 
 
 /* ═══════════════════ Init ══════════════════════════════════════ */
 
