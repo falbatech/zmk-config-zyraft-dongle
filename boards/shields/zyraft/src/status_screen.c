@@ -1,8 +1,9 @@
 /*
- * Zyra FT Dongle - FalbaTech Status Screen
- * GC9A01 240x240
+ * Redox FT Dongle — FalbaTech Status Screen
+ * GC9A01 240×240 okrągły TFT
+ * SPDX-License-Identifier: MIT
  *
- * Kolory lv_color_hex() — wartości nieintuicyjne (BGR + byte-swap SPI):
+ * Kolory lv_color_hex() — wartości dla GC9A01 bez LV_COLOR_16_SWAP:
  *   0xE00039 → ZIELONY     0x884890 → SZARY
  *   0xFFFFFF → BIAŁY       0x000000 → CZARNY
  * Surowe dane obrazów (lv_image_dsc_t): RGB565 big-endian.
